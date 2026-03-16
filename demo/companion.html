@@ -1,0 +1,747 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Companion UI</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>∞</text></svg>">
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+      background: #080808; color: #d4d4d4;
+      height: 100vh; display: flex; overflow: hidden;
+    }
+
+    /* ── Chat Panel (left) ── */
+    .chat-panel {
+      width: 360px; flex-shrink: 0;
+      display: flex; flex-direction: column;
+      background: #0c0c0c;
+      border-right: 1px solid rgba(255,255,255,0.06);
+    }
+
+    .chat-header {
+      padding: 16px 20px;
+      border-bottom: 1px solid rgba(255,255,255,0.06);
+      display: flex; justify-content: space-between; align-items: center;
+    }
+    .chat-header h1 {
+      font-size: 14px; font-weight: 600; color: #e8856a;
+      letter-spacing: -0.3px;
+    }
+    .header-actions { display: flex; gap: 12px; align-items: center; }
+    .icon-btn {
+      cursor: pointer; font-size: 14px; opacity: 0.35;
+      transition: opacity 0.2s; user-select: none;
+      background: none; border: none; color: inherit;
+    }
+    .icon-btn:hover { opacity: 0.8; }
+
+    /* Config */
+    .config-panel {
+      max-height: 0; overflow: hidden;
+      transition: max-height 0.3s ease;
+      border-bottom: 1px solid rgba(255,255,255,0.06);
+      background: #0a0a0a;
+    }
+    .config-panel.open { max-height: 400px; overflow-y: auto; }
+    .config-content { padding: 14px 20px; }
+    .field { margin-bottom: 10px; }
+    .field label {
+      font-size: 10px; color: #555; display: block;
+      margin-bottom: 3px; text-transform: uppercase;
+      letter-spacing: 0.5px; font-weight: 500;
+    }
+    .field label .hint { color: #3a3a3a; }
+    input, select {
+      background: #111; border: 1px solid #1a1a1a; border-radius: 6px;
+      color: #bbb; padding: 7px 10px; font-size: 12px; width: 100%;
+      outline: none; transition: border-color 0.2s;
+    }
+    input:focus { border-color: rgba(232,133,106,0.3); }
+
+    .tools-row { display: flex; gap: 6px; margin-bottom: 10px; flex-wrap: wrap; }
+    .tool-chip {
+      padding: 4px 10px; border-radius: 12px; font-size: 11px;
+      cursor: pointer; border: 1px solid #1a1a1a; background: #111;
+      color: #666; transition: all 0.2s; user-select: none;
+    }
+    .tool-chip.active {
+      background: rgba(232,133,106,0.08);
+      border-color: rgba(232,133,106,0.25);
+      color: #e8856a;
+    }
+
+    /* Messages */
+    .messages {
+      flex: 1; overflow-y: auto; padding: 16px 20px;
+      display: flex; flex-direction: column; gap: 12px;
+    }
+    .messages::-webkit-scrollbar { width: 3px; }
+    .messages::-webkit-scrollbar-thumb { background: #1a1a1a; border-radius: 2px; }
+
+    .message { display: flex; flex-direction: column; animation: msgIn 0.25s ease; }
+    @keyframes msgIn { from { opacity: 0; transform: translateY(6px); } }
+    .message.user { align-items: flex-end; }
+    .message.agent { align-items: flex-start; }
+
+    .message-content {
+      max-width: 92%; font-size: 13px; line-height: 1.6;
+      word-wrap: break-word; overflow-wrap: break-word;
+      min-width: 0;
+    }
+    .message.user .message-content {
+      background: rgba(232,133,106,0.1);
+      color: #ccc; padding: 8px 12px;
+      border-radius: 12px 12px 4px 12px;
+    }
+    .message.agent .message-content { color: #999; padding: 2px 0; }
+    .message.agent .message-content p { margin-bottom: 6px; }
+    .message.agent .message-content p:last-child { margin-bottom: 0; }
+    .message.agent .message-content strong { color: #d4d4d4; }
+    .message.agent .message-content em { color: #888; }
+    .message.agent .message-content code {
+      background: #151515; padding: 1px 5px; border-radius: 3px;
+      font-size: 12px; word-break: break-all;
+    }
+    .message.agent .message-content pre {
+      background: #111; padding: 10px 12px; border-radius: 6px;
+      overflow-x: auto; font-size: 12px; max-width: 100%;
+      margin: 6px 0;
+    }
+    .message.agent .message-content pre code {
+      background: none; padding: 0; word-break: normal;
+    }
+    .message.agent .message-content ul,
+    .message.agent .message-content ol {
+      padding-left: 18px; margin-bottom: 6px;
+    }
+    .message.agent .message-content li { margin-bottom: 2px; }
+    .message.agent .message-content blockquote {
+      border-left: 2px solid #333; padding-left: 10px;
+      color: #777; margin: 6px 0;
+    }
+    .message.agent .message-content a { color: #e8856a; text-decoration: none; }
+    .message.agent .message-content a:hover { text-decoration: underline; }
+
+    .tool-indicator {
+      font-size: 11px; color: #555; padding: 4px 0;
+      display: flex; align-items: center; gap: 6px;
+    }
+    .tool-indicator .dot {
+      width: 4px; height: 4px; border-radius: 50%;
+      background: #e8856a; animation: blink 1.2s ease-in-out infinite;
+    }
+
+    .typing { color: #444; font-size: 12px; padding: 4px 0; }
+    .typing::after {
+      content: ''; display: inline-block;
+      width: 4px; height: 4px; background: #e8856a;
+      border-radius: 50%; margin-left: 5px;
+      animation: blink 1s ease-in-out infinite;
+    }
+    @keyframes blink { 0%,100% { opacity: 0.15; } 50% { opacity: 0.7; } }
+
+    /* Input */
+    .input-area {
+      padding: 12px 16px;
+      border-top: 1px solid rgba(255,255,255,0.06);
+      display: flex; gap: 8px;
+    }
+    .input-area input {
+      flex: 1; padding: 9px 12px; border-radius: 8px; font-size: 13px;
+    }
+    .input-area button {
+      padding: 9px 16px; border: none; border-radius: 8px;
+      background: #e8856a; color: #080808; font-size: 12px; font-weight: 600;
+      cursor: pointer; transition: opacity 0.2s; letter-spacing: -0.2px;
+    }
+    .input-area button:hover { opacity: 0.85; }
+    .input-area button:disabled { opacity: 0.25; cursor: not-allowed; }
+
+    /* ── Canvas (right) ── */
+    .canvas {
+      flex: 1; position: relative; overflow: hidden;
+      background: #080808;
+    }
+    .presence {
+      position: absolute; top: 50%; left: 50%;
+      transform: translate(-50%, -50%);
+      font-size: 56px; opacity: 0.2; color: #e8856a;
+      animation: pulse 4s ease-in-out infinite;
+      transition: opacity 0.5s;
+    }
+    .presence.hidden { opacity: 0; pointer-events: none; }
+    @keyframes pulse {
+      0%,100% { opacity: 0.15; transform: translate(-50%,-50%) scale(1); }
+      50% { opacity: 0.35; transform: translate(-50%,-50%) scale(1.05); }
+    }
+
+    .canvas-content {
+      position: absolute; inset: 0;
+      padding: 40px 48px;
+      display: flex; flex-direction: column;
+      gap: 16px; overflow-y: auto;
+      align-items: center;
+    }
+    .canvas-content::-webkit-scrollbar { width: 4px; }
+    .canvas-content::-webkit-scrollbar-thumb { background: #1a1a1a; border-radius: 2px; }
+
+    /* Canvas cards */
+    .canvas-card {
+      background: rgba(14,14,14,0.9);
+      border: 1px solid rgba(255,255,255,0.05);
+      border-radius: 14px; padding: 24px 28px;
+      backdrop-filter: blur(16px);
+      animation: cardIn 0.5s cubic-bezier(.23,1,.32,1);
+      max-width: 520px; width: 100%;
+      word-wrap: break-word; overflow-wrap: break-word;
+    }
+    .canvas-card + .canvas-card { animation-delay: 0.08s; }
+    @keyframes cardIn {
+      from { opacity: 0; transform: translateY(20px) scale(0.98); }
+      to { opacity: 1; transform: translateY(0) scale(1); }
+    }
+    .canvas-card.fade-out {
+      animation: cardOut 0.35s ease-out forwards;
+    }
+    @keyframes cardOut {
+      to { opacity: 0; transform: translateY(-10px) scale(0.98); }
+    }
+
+    /* movie-card */
+    .movie-card h2 { color: #e8856a; margin-bottom: 4px; font-size: 20px; font-weight: 600; letter-spacing: -0.4px; }
+    .movie-card .meta-row { display: flex; gap: 10px; align-items: center; margin-bottom: 12px; flex-wrap: wrap; }
+    .movie-card .year { color: #666; font-size: 13px; }
+    .movie-card .rating { color: #e0a86e; font-size: 13px; }
+    .movie-card .genre { color: #555; font-size: 12px; background: rgba(255,255,255,0.04); padding: 2px 8px; border-radius: 4px; }
+    .movie-card .tagline { color: #999; font-size: 14px; line-height: 1.6; }
+    .movie-card .director { color: #555; font-size: 12px; margin-top: 10px; }
+
+    /* progress-card */
+    .progress-card h3 { color: #e8856a; margin-bottom: 14px; font-size: 15px; font-weight: 500; }
+    .progress-bar { background: #151515; height: 5px; border-radius: 3px; overflow: hidden; margin-bottom: 6px; }
+    .progress-fill { background: linear-gradient(90deg, #e8856a, #e0a86e); height: 100%; border-radius: 3px; transition: width 0.8s cubic-bezier(.23,1,.32,1); }
+    .progress-meta { color: #666; font-size: 12px; }
+
+    /* text-highlight */
+    .text-highlight { font-size: 22px; color: #e8856a; text-align: center; line-height: 1.5; font-weight: 300; letter-spacing: -0.3px; padding: 8px 0; }
+
+    /* code-block */
+    .code-block pre { background: #0e0e0e; padding: 16px; border-radius: 8px; overflow-x: auto; font-size: 13px; line-height: 1.5; color: #bbb; }
+
+    /* list-card */
+    .list-card h3 { color: #e8856a; margin-bottom: 12px; font-size: 15px; font-weight: 500; }
+    .list-card .list-item {
+      padding: 8px 0;
+      border-bottom: 1px solid rgba(255,255,255,0.03);
+      display: flex; flex-direction: column; gap: 2px;
+    }
+    .list-card .list-item:last-child { border-bottom: none; }
+    .list-card .item-title { color: #ccc; font-size: 13px; }
+    .list-card .item-detail { color: #666; font-size: 12px; line-height: 1.5; }
+
+    /* timeline-card */
+    .timeline-card h3 { color: #e8856a; margin-bottom: 14px; font-size: 15px; font-weight: 500; }
+    .timeline-item {
+      position: relative; padding-left: 20px; padding-bottom: 14px;
+      border-left: 1px solid rgba(232,133,106,0.15);
+    }
+    .timeline-item:last-child { border-left-color: transparent; padding-bottom: 0; }
+    .timeline-item::before {
+      content: ''; position: absolute; left: -3px; top: 4px;
+      width: 5px; height: 5px; border-radius: 50%;
+      background: #e8856a;
+    }
+    .timeline-item .tl-time { color: #555; font-size: 11px; margin-bottom: 2px; }
+    .timeline-item .tl-title { color: #ccc; font-size: 13px; }
+    .timeline-item .tl-desc { color: #666; font-size: 12px; margin-top: 2px; }
+
+    /* compare-card */
+    .compare-card h3 { color: #e8856a; margin-bottom: 14px; font-size: 15px; font-weight: 500; }
+    .compare-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    .compare-col h4 { color: #ccc; font-size: 13px; font-weight: 500; margin-bottom: 8px; padding-bottom: 6px; border-bottom: 1px solid rgba(255,255,255,0.06); }
+    .compare-col .compare-item { color: #888; font-size: 12px; padding: 3px 0; }
+
+    /* stat-card */
+    .stat-card { text-align: center; }
+    .stat-card .stat-value { font-size: 36px; font-weight: 300; color: #e8856a; letter-spacing: -1px; }
+    .stat-card .stat-label { color: #666; font-size: 12px; margin-top: 4px; text-transform: uppercase; letter-spacing: 0.5px; }
+    .stat-card .stat-change { color: #4ade80; font-size: 12px; margin-top: 2px; }
+    .stat-card .stat-change.negative { color: #ef4444; }
+
+    /* quote-card */
+    .quote-card .quote-text { color: #ccc; font-size: 16px; line-height: 1.6; font-style: italic; font-weight: 300; }
+    .quote-card .quote-author { color: #666; font-size: 12px; margin-top: 10px; }
+
+    /* markdown-card */
+    .markdown-card .md-body { font-size: 14px; line-height: 1.7; color: #aaa; }
+    .markdown-card .md-body h1,.markdown-card .md-body h2,.markdown-card .md-body h3 { color: #ddd; margin: 12px 0 6px; }
+    .markdown-card .md-body h1 { font-size: 18px; } .markdown-card .md-body h2 { font-size: 16px; } .markdown-card .md-body h3 { font-size: 14px; }
+    .markdown-card .md-body p { margin-bottom: 8px; }
+    .markdown-card .md-body ul,.markdown-card .md-body ol { padding-left: 18px; margin-bottom: 8px; }
+    .markdown-card .md-body code { background: #151515; padding: 1px 5px; border-radius: 3px; font-size: 13px; }
+    .markdown-card .md-body pre { background: #0e0e0e; padding: 12px; border-radius: 6px; overflow-x: auto; margin: 8px 0; }
+    .markdown-card .md-body pre code { background: none; padding: 0; }
+    .markdown-card .md-body blockquote { border-left: 2px solid #333; padding-left: 10px; color: #777; margin: 8px 0; }
+    .markdown-card .md-body a { color: #e8856a; }
+    .markdown-card .md-body strong { color: #ddd; }
+    .markdown-card .md-body table { border-collapse: collapse; width: 100%; margin: 8px 0; }
+    .markdown-card .md-body th,.markdown-card .md-body td { border: 1px solid #222; padding: 6px 10px; font-size: 12px; }
+    .markdown-card .md-body th { background: #151515; color: #bbb; }
+
+    /* image-grid */
+    .image-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 10px; }
+    .image-grid img { width: 100%; border-radius: 8px; object-fit: cover; aspect-ratio: 16/10; background: #151515; }
+
+    /* Responsive */
+    @media (max-width: 768px) {
+      body { flex-direction: column; }
+      .chat-panel { width: 100%; height: 55vh; }
+      .canvas { height: 45vh; }
+    }
+  </style>
+</head>
+<body>
+  <div class="chat-panel">
+    <div class="chat-header">
+      <h1>Companion</h1>
+      <div class="header-actions">
+        <button class="icon-btn" id="clearBtn" title="New chat">⟳</button>
+        <button class="icon-btn" id="gearBtn" title="Settings">⚙</button>
+      </div>
+    </div>
+
+    <div class="config-panel" id="configPanel">
+      <div class="config-content">
+        <div class="field">
+          <label>Provider</label>
+          <select id="provider">
+            <option value="anthropic">Anthropic</option>
+            <option value="openai">OpenAI</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>API Key</label>
+          <input type="text" id="apiKey" placeholder="sk-ant-... or sk-...">
+        </div>
+        <div class="field">
+          <label>Base URL <span class="hint">(optional)</span></label>
+          <input id="baseUrl" placeholder="https://api.anthropic.com">
+        </div>
+        <div class="field">
+          <label>Model <span class="hint">(optional)</span></label>
+          <input id="model" placeholder="claude-sonnet-4-20250514">
+        </div>
+        <div class="field">
+          <label>Search API Key <span class="hint">(Tavily)</span></label>
+          <input type="text" id="searchApiKey" placeholder="tvly-...">
+        </div>
+        <div style="margin-top:6px">
+          <label style="font-size:10px;color:#555;text-transform:uppercase;letter-spacing:0.5px;font-weight:500">Tools</label>
+          <div class="tools-row" style="margin-top:4px">
+            <div class="tool-chip active" data-tool="search">🔍 Search</div>
+            <div class="tool-chip" data-tool="code">💻 Code</div>
+          </div>
+        </div>
+        <div style="font-size:10px;color:#333;margin-top:8px">Auto-saved · Powered by agentic-lite</div>
+      </div>
+    </div>
+
+    <div class="messages" id="messages"></div>
+
+    <div class="input-area">
+      <input type="text" id="input" placeholder="Say something..." autocomplete="off" />
+      <button id="sendBtn">Send</button>
+    </div>
+  </div>
+
+  <div class="canvas" id="canvas">
+    <div class="presence" id="presence">∞</div>
+  </div>
+
+  <script type="module">
+    import { agenticAsk } from './agentic-agent.js'
+
+    // ── Config ──
+    const STORAGE_KEY = 'companion-ui-config'
+
+    const SYSTEM_PROMPT = `You are a visual AI companion. Your responses come alive on a canvas beside the chat.
+
+When your response benefits from visual representation, include canvas annotations inline with your text. They are invisible to the user in chat — they only render on the visual canvas.
+
+Format: <!--canvas:TYPE JSON-->
+
+Available types:
+- movie-card: {"title":"Name","year":2020,"rating":8.5,"tagline":"Brief description","genre":"Sci-Fi","director":"Name"}
+- progress-card: {"title":"Task","progress":75,"status":"In progress"}
+- text-highlight: {"text":"An important quote or key insight"}
+- code-block: {"code":"console.log('hi')","language":"javascript"}
+- list-card: {"title":"Title","items":[{"title":"Item","detail":"Description text that can be longer"}]}
+- timeline-card: {"title":"Title","events":[{"time":"2020","title":"Event","description":"Details"}]}
+- compare-card: {"title":"A vs B","left":{"name":"Option A","items":["Pro 1","Pro 2"]},"right":{"name":"Option B","items":["Pro 1","Pro 2"]}}
+- stat-card: {"value":"42%","label":"Conversion Rate","change":"+5.2%"}
+- quote-card: {"text":"The quote text","author":"Author Name","source":"Book Title"}
+- markdown-card: {"content":"# Full Markdown\\n\\nWith **rich** formatting, tables, lists..."}
+- image-grid: {"images":["url1","url2"]}
+
+Guidelines:
+- Use canvas when visuals genuinely add value. Pure text answers need no annotation.
+- Keep chat text concise when canvas carries the detail — don't repeat everything.
+- Multiple annotations create a rich, layered canvas.
+- For structured data, prefer list-card or timeline-card over plain text.
+- For analysis or reports, use markdown-card for rich formatted content.
+- For comparisons, use compare-card instead of text-based tables.
+- For key metrics or numbers, use stat-card.
+- For memorable quotes, use quote-card.
+
+Example:
+"Here's a great sci-fi film:
+<!--canvas:movie-card {"title":"Arrival","year":2016,"rating":7.9,"tagline":"A linguist is recruited to help communicate with aliens who have arrived on Earth.","genre":"Sci-Fi / Drama","director":"Denis Villeneuve"}-->
+It explores how language shapes perception — really thought-provoking."`
+
+    let conversationHistory = []
+
+    function loadConfig() {
+      try {
+        const s = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}')
+        if (s.provider) $('provider').value = s.provider
+        if (s.apiKey) $('apiKey').value = s.apiKey
+        if (s.baseUrl) $('baseUrl').value = s.baseUrl
+        if (s.model) $('model').value = s.model
+        if (s.searchApiKey) $('searchApiKey').value = s.searchApiKey
+      } catch {}
+    }
+
+    function saveConfig() {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({
+        provider: $('provider').value,
+        apiKey: $('apiKey').value,
+        baseUrl: $('baseUrl').value,
+        model: $('model').value,
+        searchApiKey: $('searchApiKey').value,
+      }))
+    }
+
+    function getConfig() {
+      const activeTools = [...document.querySelectorAll('.tool-chip.active')].map(c => c.dataset.tool)
+      return {
+        provider: $('provider').value || 'anthropic',
+        baseUrl: $('baseUrl').value.trim() || undefined,
+        apiKey: $('apiKey').value.trim(),
+        model: $('model').value.trim() || undefined,
+        searchApiKey: $('searchApiKey').value.trim() || undefined,
+        tools: activeTools,
+        stream: true,
+        proxyUrl: '/api/proxy',
+      }
+    }
+
+    const $ = id => document.getElementById(id)
+
+    loadConfig()
+    document.querySelectorAll('#provider,#apiKey,#baseUrl,#model,#searchApiKey').forEach(el => {
+      el.addEventListener('input', saveConfig)
+    })
+
+    // ── UI Events ──
+    $('gearBtn').addEventListener('click', () => $('configPanel').classList.toggle('open'))
+
+    $('clearBtn').addEventListener('click', () => {
+      conversationHistory = []
+      $('messages').innerHTML = ''
+      resetCanvas()
+    })
+
+    document.querySelectorAll('.tool-chip').forEach(chip => {
+      chip.addEventListener('click', () => { chip.classList.toggle('active'); saveConfig() })
+    })
+
+    $('input').addEventListener('keydown', e => {
+      if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) {
+        e.preventDefault()
+        send()
+      }
+    })
+    $('sendBtn').addEventListener('click', send)
+
+    // ── Message Rendering ──
+    function addMessage(role, html) {
+      const area = $('messages')
+      const div = document.createElement('div')
+      div.className = `message ${role}`
+      div.innerHTML = `<div class="message-content">${html}</div>`
+      area.appendChild(div)
+      area.scrollTop = area.scrollHeight
+      return div
+    }
+
+    function addTyping() {
+      const area = $('messages')
+      const div = document.createElement('div')
+      div.className = 'message agent'
+      div.id = 'typing-indicator'
+      div.innerHTML = '<div class="typing">thinking</div>'
+      area.appendChild(div)
+      area.scrollTop = area.scrollHeight
+    }
+
+    function removeTyping() {
+      const el = $('typing-indicator')
+      if (el) el.remove()
+    }
+
+    function addToolIndicator(name) {
+      removeTyping()
+      const area = $('messages')
+      const div = document.createElement('div')
+      div.className = 'message agent tool-msg'
+      div.innerHTML = `<div class="tool-indicator"><span class="dot"></span> searching: ${esc(name)}</div>`
+      area.appendChild(div)
+      area.scrollTop = area.scrollHeight
+    }
+
+    function removeToolIndicators() {
+      document.querySelectorAll('.tool-msg').forEach(el => el.remove())
+    }
+
+    // ── Canvas ──
+    function stripCanvasAnnotations(text) {
+      let result = text.replace(/<!--canvas:\S+\s+[\s\S]*?-->/g, '')
+      const idx = result.indexOf('<!--canvas:')
+      if (idx !== -1) result = result.substring(0, idx)
+      return result.trim()
+    }
+
+    function parseCanvasAnnotations(text) {
+      const results = []
+      const regex = /<!--canvas:(\S+)\s+([\s\S]*?)-->/g
+      let m
+      while ((m = regex.exec(text)) !== null) {
+        try { results.push({ type: m[1], data: JSON.parse(m[2]) }) } catch {}
+      }
+      return results
+    }
+
+    function resetCanvas() {
+      const canvas = $('canvas')
+      const old = canvas.querySelector('.canvas-content')
+      if (old) old.remove()
+      $('presence').classList.remove('hidden')
+    }
+
+    function renderCanvas(components) {
+      const canvas = $('canvas')
+      const presence = $('presence')
+
+      const old = canvas.querySelector('.canvas-content')
+      if (old) {
+        old.querySelectorAll('.canvas-card').forEach(c => c.classList.add('fade-out'))
+        setTimeout(() => old.remove(), 350)
+      }
+
+      if (!components.length) { presence.classList.remove('hidden'); return }
+      presence.classList.add('hidden')
+
+      const container = document.createElement('div')
+      container.className = 'canvas-content'
+
+      components.forEach(({ type, data }, i) => {
+        const card = document.createElement('div')
+        card.className = `canvas-card ${type}`
+        card.style.animationDelay = `${i * 0.08}s`
+
+        switch (type) {
+          case 'movie-card':
+            card.innerHTML = `
+              <h2>${esc(data.title)}</h2>
+              <div class="meta-row">
+                <span class="year">${data.year || ''}</span>
+                ${data.rating ? `<span class="rating">★ ${data.rating}</span>` : ''}
+                ${data.genre ? `<span class="genre">${esc(data.genre)}</span>` : ''}
+              </div>
+              <div class="tagline">${esc(data.tagline || '')}</div>
+              ${data.director ? `<div class="director">Dir. ${esc(data.director)}</div>` : ''}`
+            break
+
+          case 'progress-card':
+            card.innerHTML = `
+              <h3>${esc(data.title)}</h3>
+              <div class="progress-bar"><div class="progress-fill" style="width:${data.progress||0}%"></div></div>
+              <div class="progress-meta">${esc(data.status||'')} ${data.progress?data.progress+'%':''}</div>`
+            break
+
+          case 'text-highlight':
+            card.innerHTML = `<div class="text-highlight">${esc(data.text)}</div>`
+            break
+
+          case 'code-block':
+            card.innerHTML = `<div class="code-block"><pre><code>${esc(data.code||'')}</code></pre></div>`
+            break
+
+          case 'list-card':
+            card.innerHTML = `<h3>${esc(data.title)}</h3>${(data.items||[]).map(it =>
+              `<div class="list-item"><span class="item-title">${esc(it.title)}</span><span class="item-detail">${esc(it.detail||'')}</span></div>`
+            ).join('')}`
+            break
+
+          case 'timeline-card':
+            card.innerHTML = `<h3>${esc(data.title)}</h3>${(data.events||[]).map(ev =>
+              `<div class="timeline-item">
+                ${ev.time ? `<div class="tl-time">${esc(ev.time)}</div>` : ''}
+                <div class="tl-title">${esc(ev.title)}</div>
+                ${ev.description ? `<div class="tl-desc">${esc(ev.description)}</div>` : ''}
+              </div>`
+            ).join('')}`
+            break
+
+          case 'compare-card':
+            card.innerHTML = `<h3>${esc(data.title)}</h3>
+              <div class="compare-grid">
+                <div class="compare-col">
+                  <h4>${esc(data.left?.name||'A')}</h4>
+                  ${(data.left?.items||[]).map(it => `<div class="compare-item">${esc(it)}</div>`).join('')}
+                </div>
+                <div class="compare-col">
+                  <h4>${esc(data.right?.name||'B')}</h4>
+                  ${(data.right?.items||[]).map(it => `<div class="compare-item">${esc(it)}</div>`).join('')}
+                </div>
+              </div>`
+            break
+
+          case 'stat-card':
+            card.innerHTML = `
+              <div class="stat-value">${esc(data.value)}</div>
+              <div class="stat-label">${esc(data.label||'')}</div>
+              ${data.change ? `<div class="stat-change${data.change.startsWith('-')?' negative':''}">${esc(data.change)}</div>` : ''}`
+            break
+
+          case 'quote-card':
+            card.innerHTML = `
+              <div class="quote-text">"${esc(data.text)}"</div>
+              <div class="quote-author">${esc(data.author||'')}${data.source ? ` — ${esc(data.source)}` : ''}</div>`
+            break
+
+          case 'markdown-card':
+            card.innerHTML = `<div class="md-body">${marked.parse(data.content||'')}</div>`
+            break
+
+          case 'image-grid':
+            card.innerHTML = `<div class="image-grid">${(data.images||[]).map(url =>
+              `<img src="${esc(url)}" loading="lazy" />`
+            ).join('')}</div>`
+            break
+
+          default:
+            card.innerHTML = `<div style="color:#555;font-size:12px">Unknown: ${esc(type)}</div>`
+        }
+
+        container.appendChild(card)
+      })
+
+      canvas.appendChild(container)
+    }
+
+    // ── Send (powered by agentic-lite) ──
+    async function send() {
+      const input = $('input')
+      const btn = $('sendBtn')
+      const prompt = input.value.trim()
+      if (!prompt) return
+
+      const config = getConfig()
+      if (!config.apiKey) {
+        $('configPanel').classList.add('open')
+        $('apiKey').focus()
+        return
+      }
+
+      addMessage('user', esc(prompt))
+      input.value = ''
+      btn.disabled = true
+
+      addTyping()
+
+      let msgEl = null
+      let contentEl = null
+      let streamedText = ''
+
+      try {
+        const result = await agenticAsk(prompt, {
+          ...config,
+          history: conversationHistory,
+          system: SYSTEM_PROMPT,
+        }, (event, data) => {
+          if (event === 'status') {
+            // Round status — keep typing indicator
+          } else if (event === 'tool') {
+            addToolIndicator(data.input?.query || data.name)
+          } else if (event === 'token') {
+            // First token — replace typing with message
+            if (!msgEl) {
+              removeTyping()
+              removeToolIndicators()
+              msgEl = addMessage('agent', '')
+              contentEl = msgEl.querySelector('.message-content')
+            }
+            streamedText += data.text
+            const clean = stripCanvasAnnotations(streamedText)
+            contentEl.innerHTML = marked.parse(clean)
+            $('messages').scrollTop = $('messages').scrollHeight
+
+            // Live canvas update on complete annotations
+            const components = parseCanvasAnnotations(streamedText)
+            if (components.length > 0) renderCanvas(components)
+          } else if (event === 'warning') {
+            console.warn('[Loop]', data.message)
+          }
+        })
+
+        removeTyping()
+        removeToolIndicators()
+
+        const fullText = result.answer || ''
+
+        // Store in conversation history
+        conversationHistory.push(
+          { role: 'user', content: prompt },
+          { role: 'assistant', content: fullText }
+        )
+
+        // Final clean render
+        const finalClean = stripCanvasAnnotations(fullText)
+        if (finalClean) {
+          if (!msgEl) {
+            msgEl = addMessage('agent', '')
+            contentEl = msgEl.querySelector('.message-content')
+          }
+          contentEl.innerHTML = marked.parse(finalClean)
+        } else if (msgEl && !stripCanvasAnnotations(streamedText)) {
+          msgEl.remove()
+        }
+
+        // Final canvas render
+        const components = parseCanvasAnnotations(fullText)
+        if (components.length > 0) renderCanvas(components)
+
+      } catch (err) {
+        removeTyping()
+        removeToolIndicators()
+        const errMsg = err instanceof Error ? err.message : (typeof err === 'string' ? err : JSON.stringify(err, null, 2))
+        console.error('[Companion] Error:', err)
+        addMessage('agent', `<span style="color:#e85555;font-size:12px">Error: ${esc(errMsg)}</span>`)
+      } finally {
+        btn.disabled = false
+        input.focus()
+      }
+    }
+
+    function esc(s) {
+      return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;')
+    }
+  </script>
+</body>
+</html>

@@ -1,0 +1,457 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>agentic-lite</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚡</text></svg>">
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/highlight.js@11/highlight.min.js"></script>
+  <script type="module" src="./agentic-agent.js"></script>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/highlight.js@11/styles/github-dark.min.css">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: #0a0a0a; color: #e0e0e0;
+      height: 100vh; display: flex; overflow: hidden;
+    }
+
+    /* Left panel — results */
+    .panel-left {
+      flex: 1; display: flex; flex-direction: column;
+      border-right: 1px solid #1a1a1a;
+      min-width: 0;
+    }
+    .panel-left-header {
+      padding: 20px 24px 16px;
+      border-bottom: 1px solid #1a1a1a;
+      flex-shrink: 0;
+    }
+    .panel-left-header h1 { font-size: 20px; font-weight: 600; }
+    .panel-left-header h1 span { color: #fbbf24; }
+    .panel-left-header p { color: #555; font-size: 12px; margin-top: 4px; }
+
+    .result-area {
+      flex: 1; overflow-y: auto; padding: 24px;
+    }
+    .empty-state {
+      display: flex; align-items: center; justify-content: center;
+      height: 100%; color: #333; font-size: 14px;
+      flex-direction: column; gap: 8px;
+    }
+    .empty-state .icon { font-size: 32px; opacity: 0.5; }
+
+    /* Markdown content styling */
+    .md-content { font-size: 14px; line-height: 1.7; }
+    .md-content p { margin-bottom: 12px; }
+    .md-content h1, .md-content h2, .md-content h3 { margin: 16px 0 8px; font-weight: 600; }
+    .md-content h1 { font-size: 20px; } .md-content h2 { font-size: 17px; } .md-content h3 { font-size: 15px; }
+    .md-content ul, .md-content ol { padding-left: 20px; margin-bottom: 12px; }
+    .md-content li { margin-bottom: 4px; }
+    .md-content code { background: #1a1a1a; padding: 2px 6px; border-radius: 4px; font-size: 13px; }
+    .md-content pre { background: #111; padding: 14px; border-radius: 8px; overflow-x: auto; margin: 12px 0; }
+    .md-content pre code { background: none; padding: 0; }
+    .md-content a { color: #fbbf24; text-decoration: none; }
+    .md-content a:hover { text-decoration: underline; }
+    .md-content blockquote { border-left: 3px solid #333; padding-left: 12px; color: #888; margin: 12px 0; }
+    .md-content strong { color: #f0f0f0; }
+    .md-content table { border-collapse: collapse; margin: 12px 0; width: 100%; }
+    .md-content th, .md-content td { border: 1px solid #333; padding: 8px 12px; text-align: left; font-size: 13px; }
+    .md-content th { background: #1a1a1a; }
+
+    /* Result cards */
+    .result-card {
+      background: #111; border: 1px solid #1a1a1a; border-radius: 10px;
+      padding: 16px 20px; margin-bottom: 12px;
+    }
+    .result-label { font-size: 11px; color: #666; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 10px; }
+    .sources-list { display: flex; flex-direction: column; gap: 6px; }
+    .sources-list a { color: #fbbf24; text-decoration: none; font-size: 13px; }
+    .sources-list a:hover { text-decoration: underline; }
+    .source-snippet { color: #666; font-size: 12px; margin-top: 2px; }
+    .images-grid {
+      display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+      gap: 8px; margin-top: 8px;
+    }
+    .images-grid img {
+      width: 100%; border-radius: 6px; cursor: pointer;
+      transition: opacity 0.2s; object-fit: cover; aspect-ratio: 16/10;
+      background: #1a1a1a;
+    }
+    .images-grid img:hover { opacity: 0.85; }
+    .meta { font-size: 12px; color: #444; margin-top: 10px; }
+    .error-text { color: #ef4444; }
+    .loading-text { color: #666; padding: 40px; text-align: center; }
+    .collapsible { cursor: pointer; user-select: none; }
+    .collapsible::before { content: '▸ '; color: #555; }
+    .collapsible.open::before { content: '▾ '; }
+
+    /* Right panel — config */
+    .panel-right {
+      width: 340px; flex-shrink: 0;
+      display: flex; flex-direction: column;
+      background: #0d0d0d;
+      overflow-y: auto;
+    }
+    .config-section { padding: 20px; flex-shrink: 0; }
+    .config-section h2 { font-size: 13px; color: #555; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 14px; }
+    .field { margin-bottom: 12px; }
+    .field label { font-size: 12px; color: #666; display: block; margin-bottom: 4px; }
+    .field label .hint { color: #444; }
+    input, select, textarea {
+      background: #141414; border: 1px solid #222; border-radius: 8px;
+      color: #e0e0e0; padding: 9px 12px; font-size: 13px; width: 100%;
+      outline: none; transition: border-color 0.2s;
+    }
+    input:focus, select:focus, textarea:focus { border-color: #fbbf24; }
+    textarea { resize: vertical; min-height: 100px; font-family: inherit; }
+
+    .tools-row { display: flex; gap: 8px; margin-bottom: 14px; }
+    .tool-chip {
+      padding: 5px 12px; border-radius: 16px; font-size: 12px; cursor: pointer;
+      border: 1px solid #222; background: #141414; transition: all 0.2s;
+    }
+    .tool-chip.active { background: #fbbf2415; border-color: #fbbf2450; color: #fbbf24; }
+
+    button.run {
+      width: 100%; padding: 11px; border: none; border-radius: 8px;
+      background: #fbbf24; color: #0a0a0a; font-size: 14px; font-weight: 600;
+      cursor: pointer; transition: opacity 0.2s;
+    }
+    button.run:hover { opacity: 0.9; }
+    button.run:disabled { opacity: 0.4; cursor: not-allowed; }
+
+    /* Toggle switch */
+    .toggle { position: relative; display: inline-block; width: 36px; height: 20px; cursor: pointer; }
+    .toggle input { display: none; }
+    .toggle-slider {
+      position: absolute; inset: 0; background: #333; border-radius: 10px; transition: 0.2s;
+    }
+    .toggle-slider::before {
+      content: ''; position: absolute; width: 16px; height: 16px; left: 2px; top: 2px;
+      background: #666; border-radius: 50%; transition: 0.2s;
+    }
+    .toggle input:checked + .toggle-slider { background: #fbbf2440; }
+    .toggle input:checked + .toggle-slider::before { transform: translateX(16px); background: #fbbf24; }
+
+    /* Responsive */
+    @media (max-width: 768px) {
+      body { flex-direction: column-reverse; }
+      .panel-right { width: 100%; max-height: 45vh; border-right: none; border-top: 1px solid #1a1a1a; }
+      .panel-left { border-right: none; }
+    }
+</style>
+</head>
+<body>
+  <div class="panel-left">
+    <div class="panel-left-header">
+      <h1><span>⚡</span> agentic-lite</h1>
+      <p>One function call. Built-in search, code, file tools.</p>
+    </div>
+    <div class="result-area" id="resultArea">
+      <div class="empty-state">
+        <div class="icon">⚡</div>
+        <div>Results will appear here</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="panel-right" id="panelRight">
+    <div class="config-section">
+      <h2>Provider</h2>
+      <div class="field">
+        <select id="provider">
+          <option value="anthropic">Anthropic</option>
+          <option value="openai">OpenAI</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>API Key</label>
+        <input type="password" id="apiKey" placeholder="sk-ant-... or sk-...">
+      </div>
+      <div class="field">
+        <label>Base URL <span class="hint">(optional)</span></label>
+        <input id="baseUrl" placeholder="https://api.anthropic.com">
+      </div>
+      <div class="field">
+        <label>Model <span class="hint">(optional)</span></label>
+        <input id="model" placeholder="claude-sonnet-4-20250514">
+      </div>
+      <div class="field">
+        <label>Search API Key <span class="hint">(Tavily)</span></label>
+        <input type="password" id="searchApiKey" placeholder="tvly-...">
+      </div>
+      <div class="field">
+        <label style="display:flex;align-items:center;justify-content:space-between">
+          <span>Proxy <span class="hint">(bypass CORS)</span></span>
+          <label class="toggle" style="margin:0"><input type="checkbox" id="proxyEnabled" checked><span class="toggle-slider"></span></label>
+        </label>
+        <input id="proxyUrl" placeholder="Default: proxy.link2web.site/proxy" style="margin-top:6px;font-size:12px;padding:7px 10px;color:#555">
+      </div>
+    </div>
+
+    <div class="config-section" style="border-top:1px solid #1a1a1a">
+      <h2>Tools</h2>
+      <div class="tools-row">
+        <div class="tool-chip active" data-tool="search">🔍 Search</div>
+        <div class="tool-chip active" data-tool="code">💻 Code</div>
+        <div class="tool-chip" data-tool="file">📁 File</div>
+      </div>
+
+      <h2>Prompt</h2>
+      <textarea id="prompt" placeholder="Ask anything..."></textarea>
+      <button class="run" id="runBtn" style="margin-top:10px">Run</button>
+      <div style="display:flex;gap:8px;margin-top:8px">
+        <button class="run" id="clearBtn" style="background:#222;color:#888;font-weight:500;flex:1">Clear</button>
+        <button class="run" id="saveBtn" style="background:#222;color:#888;font-weight:500;flex:1">Save .md</button>
+      </div>
+    </div>
+  </div>
+  <script type="module">
+    import { agenticAsk } from './agentic-agent.js'
+    
+    // marked config
+    marked.setOptions({
+      highlight: (code, lang) => {
+        if (lang && hljs.getLanguage(lang)) return hljs.highlight(code, { language: lang }).value
+        return hljs.highlightAuto(code).value
+      },
+      breaks: true,
+    })
+
+    // localStorage persistence
+    const STORAGE_KEY = 'agentic-lite-config'
+    function loadConfig() {
+      try {
+        const s = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}')
+        if (s.provider) document.getElementById('provider').value = s.provider
+        if (s.apiKey) document.getElementById('apiKey').value = s.apiKey
+        if (s.baseUrl) document.getElementById('baseUrl').value = s.baseUrl
+        if (s.model) document.getElementById('model').value = s.model
+        if (s.searchApiKey) document.getElementById('searchApiKey').value = s.searchApiKey
+        if (s.proxyUrl) document.getElementById('proxyUrl').value = s.proxyUrl
+        if (s.proxyEnabled !== undefined) document.getElementById('proxyEnabled').checked = s.proxyEnabled
+        updateProxyVisibility()
+      } catch {}
+    }
+    function saveConfig() {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({
+        provider: document.getElementById('provider').value,
+        apiKey: document.getElementById('apiKey').value,
+        baseUrl: document.getElementById('baseUrl').value,
+        model: document.getElementById('model').value,
+        searchApiKey: document.getElementById('searchApiKey').value,
+        proxyUrl: document.getElementById('proxyUrl').value,
+        proxyEnabled: document.getElementById('proxyEnabled').checked,
+      }))
+    }
+    function updateProxyVisibility() {
+      const enabled = document.getElementById('proxyEnabled').checked
+      document.getElementById('proxyUrl').style.display = enabled ? '' : 'none'
+    }
+    loadConfig()
+    document.getElementById('proxyEnabled').addEventListener('change', () => { updateProxyVisibility(); saveConfig() })
+    document.querySelectorAll('#provider,#apiKey,#baseUrl,#model,#searchApiKey,#proxyUrl').forEach(el => {
+      el.addEventListener('change', saveConfig)
+      el.addEventListener('input', saveConfig)
+    })
+
+    // Tool chips
+    document.querySelectorAll('.tool-chip').forEach(chip => {
+      chip.addEventListener('click', () => chip.classList.toggle('active'))
+    })
+
+    // Conversation history for multi-turn
+    let conversationHistory = [] // { role, prompt, answer, sources, images, codeResults, toolCalls, usage }
+
+    // Run
+    document.getElementById('runBtn').addEventListener('click', run)
+    document.getElementById('prompt').addEventListener('keydown', e => {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') run()
+    })
+
+    // Clear
+    document.getElementById('clearBtn').addEventListener('click', () => {
+      conversationHistory = []
+      const area = document.getElementById('resultArea')
+      area.innerHTML = `<div class="empty-state"><div class="icon">⚡</div><div>Results will appear here</div></div>`
+      document.getElementById('prompt').value = ''
+    })
+
+    // Save as markdown
+    document.getElementById('saveBtn').addEventListener('click', () => {
+      if (!conversationHistory.length) return alert('Nothing to save')
+      let md = '# agentic-lite conversation\n\n'
+      for (const turn of conversationHistory) {
+        md += `## Q: ${turn.prompt}\n\n`
+        md += `${turn.answer || '(no answer)'}\n\n`
+        if (turn.sources?.length) {
+          md += `### Sources\n\n`
+          for (const s of turn.sources) md += `- [${s.title || s.url}](${s.url})\n`
+          md += '\n'
+        }
+        if (turn.codeResults?.length) {
+          md += `### Code\n\n`
+          for (const c of turn.codeResults) {
+            md += '```\n' + c.code + '\n```\n'
+            if (c.output) md += `→ ${c.output}\n\n`
+          }
+        }
+        md += '---\n\n'
+      }
+      const blob = new Blob([md], { type: 'text/markdown' })
+      const a = document.createElement('a')
+      a.href = URL.createObjectURL(blob)
+      a.download = `agentic-lite-${new Date().toISOString().slice(0,10)}.md`
+      a.click()
+      URL.revokeObjectURL(a.href)
+    })
+
+    async function run() {
+      const btn = document.getElementById('runBtn')
+      const area = document.getElementById('resultArea')
+      const prompt = document.getElementById('prompt').value.trim()
+      const apiKey = document.getElementById('apiKey').value.trim()
+      if (!prompt) return
+      if (!apiKey) return alert('Enter an API key')
+
+      const tools = [...document.querySelectorAll('.tool-chip.active')].map(c => c.dataset.tool)
+      const provider = document.getElementById('provider').value
+      const baseUrl = document.getElementById('baseUrl').value.trim() || undefined
+      const model = document.getElementById('model').value.trim() || undefined
+      const searchApiKey = document.getElementById('searchApiKey').value.trim() || undefined
+      const proxyEnabled = document.getElementById('proxyEnabled').checked
+      const proxyUrl = proxyEnabled
+        ? (document.getElementById('proxyUrl').value.trim() || 'https://proxy.link2web.site/proxy')
+        : undefined
+
+      btn.disabled = true
+      btn.textContent = 'Running...'
+      document.getElementById('prompt').value = ''
+
+      // Clear empty state if first run
+      if (!conversationHistory.length) area.innerHTML = ''
+
+      // Add user prompt card
+      const promptCard = document.createElement('div')
+      promptCard.className = 'result-card'
+      promptCard.style.borderColor = '#fbbf2430'
+      promptCard.innerHTML = `<div class="result-label" style="color:#fbbf24">You</div><div class="md-content" style="color:#ccc">${esc(prompt)}</div>`
+      area.appendChild(promptCard)
+
+      // Add status placeholder
+      const statusCard = document.createElement('div')
+      statusCard.className = 'result-card'
+      statusCard.style.opacity = '0.6'
+      statusCard.innerHTML = '<div style="font-size:12px;color:#666">⏳ Starting...</div>'
+      area.appendChild(statusCard)
+      area.scrollTop = area.scrollHeight
+
+      try {
+        const history = conversationHistory.map(h => [
+          { role: 'user', content: h.prompt },
+          { role: 'assistant', content: h.answer }
+        ]).flat()
+        
+        const result = await agenticAsk(prompt, { 
+          provider, baseUrl, apiKey, model, tools, searchApiKey, proxyUrl, history 
+        }, (event, data) => {
+          if (event === 'status') {
+            statusCard.innerHTML = `<div style="font-size:12px;color:#666">⏳ ${esc(data.message)}</div>`
+            area.scrollTop = area.scrollHeight
+          } else if (event === 'tool') {
+            const toolCard = document.createElement('div')
+            toolCard.className = 'result-card'
+            toolCard.style.borderLeft = '3px solid #333'
+            toolCard.innerHTML = `<div style="font-size:11px;color:#555;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px">🔧 ${esc(data.name)}</div><div style="font-size:12px;color:#666">${esc(JSON.stringify(data.input))}</div>`
+            area.insertBefore(toolCard, statusCard)
+            area.scrollTop = area.scrollHeight
+          }
+        })
+        
+        if (statusCard.parentNode) statusCard.remove()
+        
+        if (result) {
+          const answerCard = document.createElement('div')
+          answerCard.className = 'result-card'
+          answerCard.innerHTML = `<div class="md-content">${marked.parse(result.answer || '(no answer)')}</div>`
+          area.appendChild(answerCard)
+          conversationHistory.push({ prompt, answer: result.answer })
+        }
+      } catch (err) {
+        if (statusCard.parentNode) statusCard.remove()
+        const errCard = document.createElement('div')
+        errCard.className = 'result-card'
+        errCard.innerHTML = `<div class="error-text">${esc(err.message)}</div>`
+        area.appendChild(errCard)
+      } finally {
+        btn.disabled = false
+        btn.textContent = 'Run'
+        document.getElementById('prompt').focus()
+      }
+    }
+
+    function renderResult(data, container) {
+      const area = document.getElementById('resultArea')
+
+      // Answer card
+      if (!container) {
+        container = document.createElement('div')
+        container.className = 'result-card'
+        area.appendChild(container)
+      }
+      const answer = data.answer || '(no answer)'
+      container.innerHTML = `<div class="md-content">${marked.parse(answer)}</div>`
+
+      if (data.sources?.length) {
+        const sc = document.createElement('div')
+        sc.className = 'result-card'
+        sc.innerHTML = `<div class="result-label">Sources (${data.sources.length})</div>
+          <div class="sources-list">${data.sources.map(s =>
+            `<div><a href="${s.url}" target="_blank">${esc(s.title || s.url)}</a>
+            ${s.snippet ? `<div class="source-snippet">${esc(s.snippet.slice(0,140))}...</div>` : ''}</div>`
+          ).join('')}</div>`
+        area.appendChild(sc)
+      }
+
+      if (data.images?.length) {
+        const ic = document.createElement('div')
+        ic.className = 'result-card'
+        ic.innerHTML = `<div class="result-label">Images (${data.images.length})</div>
+          <div class="images-grid">${data.images.map(url =>
+            `<img src="${url}" loading="lazy" onclick="window.open('${url}','_blank')" onerror="this.style.display='none'">`
+          ).join('')}</div>`
+        area.appendChild(ic)
+      }
+
+      if (data.codeResults?.length) {
+        const cc = document.createElement('div')
+        cc.className = 'result-card'
+        cc.innerHTML = `<div class="result-label">Code (${data.codeResults.length})</div>
+          ${data.codeResults.map(c => `<pre><code>${esc(c.code)}</code></pre>
+            <div style="color:#4ade80;font-size:13px;margin-top:4px">→ ${esc(c.output || c.error || '')}</div>`
+          ).join('')}`
+        area.appendChild(cc)
+      }
+
+      if (data.toolCalls?.length) {
+        const tc = document.createElement('div')
+        tc.className = 'result-card'
+        tc.innerHTML = `<div class="result-label collapsible" onclick="this.classList.toggle('open');this.nextElementSibling.style.display=this.classList.contains('open')?'block':'none'">
+            Tool Calls (${data.toolCalls.length})
+          </div>
+          <pre style="display:none;font-size:12px">${esc(JSON.stringify(data.toolCalls, null, 2))}</pre>`
+        area.appendChild(tc)
+      }
+
+      // Re-highlight code blocks
+      area.querySelectorAll('pre code').forEach(el => hljs.highlightElement(el))
+      area.scrollTop = area.scrollHeight
+    }
+
+    function esc(s) {
+      return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+    }
+  </script>
+</html>

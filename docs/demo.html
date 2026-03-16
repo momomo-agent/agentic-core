@@ -1,0 +1,376 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>agentic-lite demo</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚡</text></svg>">
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/highlight.js@11/highlight.min.js"></script>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/highlight.js@11/styles/github-dark.min.css">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: #0a0a0a; color: #e0e0e0;
+      height: 100vh; display: flex; overflow: hidden;
+    }
+    .panel-left {
+      flex: 1; display: flex; flex-direction: column;
+      border-right: 1px solid #1a1a1a; min-width: 0;
+    }
+    .panel-left-header {
+      padding: 20px 24px 16px; border-bottom: 1px solid #1a1a1a; flex-shrink: 0;
+    }
+    .panel-left-header h1 { font-size: 20px; font-weight: 600; }
+    .panel-left-header h1 span { color: #fbbf24; }
+    .panel-left-header p { color: #555; font-size: 12px; margin-top: 4px; }
+    .result-area { flex: 1; overflow-y: auto; padding: 24px; }
+    .empty-state {
+      display: flex; align-items: center; justify-content: center;
+      height: 100%; color: #333; font-size: 14px;
+    }
+    .panel-right {
+      width: 360px; flex-shrink: 0; display: flex; flex-direction: column;
+      overflow-y: auto; padding: 24px; gap: 16px;
+    }
+    label { font-size: 12px; color: #666; display: block; margin-bottom: 4px; }
+    select, input, textarea {
+      width: 100%; background: #111; border: 1px solid #222; color: #e0e0e0;
+      border-radius: 6px; padding: 8px 10px; font-size: 13px; outline: none;
+    }
+    select:focus, input:focus, textarea:focus { border-color: #fbbf24; }
+    textarea { resize: vertical; min-height: 100px; font-family: inherit; }
+    .tools-row { display: flex; gap: 8px; }
+    .tool-chip {
+      padding: 6px 12px; border-radius: 16px; font-size: 12px; cursor: pointer;
+      border: 1px solid #222; background: #111; color: #888; user-select: none;
+    }
+    .tool-chip.active { border-color: #fbbf24; color: #fbbf24; background: #1a1700; }
+    button {
+      width: 100%; padding: 10px; border-radius: 8px; border: none;
+      background: #fbbf24; color: #0a0a0a; font-weight: 600; font-size: 14px;
+      cursor: pointer;
+    }
+    button:disabled { opacity: 0.5; cursor: not-allowed; }
+    .result-card {
+      background: #111; border: 1px solid #1a1a1a; border-radius: 10px;
+      padding: 20px; margin-bottom: 16px;
+    }
+    .result-label { font-size: 11px; color: #555; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 8px; }
+    .md-content { font-size: 14px; line-height: 1.7; }
+    .md-content p { margin-bottom: 8px; }
+    .md-content pre { background: #0a0a0a; border-radius: 6px; padding: 12px; overflow-x: auto; margin: 8px 0; }
+    .md-content code { font-size: 13px; }
+    .md-content ul, .md-content ol { padding-left: 20px; margin-bottom: 8px; }
+    .md-content a { color: #fbbf24; }
+    .meta { font-size: 11px; color: #444; margin-top: 12px; }
+    .sources-list a { color: #fbbf24; font-size: 13px; display: block; margin-bottom: 6px; }
+    .source-snippet { color: #555; font-size: 12px; margin-bottom: 8px; }
+    .images-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 8px; }
+    .images-grid img { width: 100%; border-radius: 6px; cursor: pointer; }
+    .error-text { color: #f87171; }
+    .loading-text { color: #888; font-size: 14px; padding: 20px; }
+    .badge { display: inline-block; font-size: 10px; padding: 2px 6px; border-radius: 4px; background: #1a2e1a; color: #4ade80; margin-left: 8px; }
+  </style>
+</head>
+<body>
+  <!-- Left panel: results -->
+  <div class="panel-left">
+    <div class="panel-left-header">
+      <h1><span>⚡</span> agentic-lite</h1>
+      <p>Browser-native agent loop — no server needed <span class="badge">static</span></p>
+    </div>
+    <div class="result-area" id="resultArea">
+      <div class="empty-state">Results will appear here</div>
+    </div>
+  </div>
+
+  <!-- Right panel: config -->
+  <div class="panel-right">
+    <div>
+      <label>Provider</label>
+      <select id="provider">
+        <option value="openai">OpenAI</option>
+        <option value="anthropic">Anthropic</option>
+      </select>
+    </div>
+    <div>
+      <label>API Key</label>
+      <input type="password" id="apiKey" placeholder="sk-...">
+    </div>
+    <div>
+      <label>Base URL (optional)</label>
+      <input type="text" id="baseUrl" placeholder="https://api.openai.com/v1">
+    </div>
+    <div>
+      <label>Model (optional)</label>
+      <input type="text" id="model" placeholder="gpt-4o / claude-sonnet-4-20250514">
+    </div>
+    <div>
+      <label>Tavily Search Key (optional)</label>
+      <input type="password" id="searchApiKey" placeholder="tvly-...">
+    </div>
+    <div>
+      <label>Tools</label>
+      <div class="tools-row">
+        <div class="tool-chip active" data-tool="search" onclick="this.classList.toggle('active')">🔍 Search</div>
+        <div class="tool-chip active" data-tool="code" onclick="this.classList.toggle('active')">💻 Code</div>
+      </div>
+    </div>
+    <div style="flex:1;">
+      <label>Prompt</label>
+      <textarea id="prompt" placeholder="Ask anything..."></textarea>
+    </div>
+    <button id="runBtn" onclick="run()">Run</button>
+  </div>
+  <script>
+    // localStorage persistence
+    const FIELDS = ['provider','apiKey','baseUrl','model','searchApiKey']
+    FIELDS.forEach(f => { const v = localStorage.getItem('al_'+f); if (v) document.getElementById(f).value = v })
+    FIELDS.forEach(f => document.getElementById(f).addEventListener('change', () => localStorage.setItem('al_'+f, document.getElementById(f).value)))
+
+    document.getElementById('prompt').addEventListener('keydown', e => {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') run()
+    })
+
+    const esc = s => s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+    const MAX_ROUNDS = 10
+
+    // ── Tool definitions ──
+    function buildToolDefs(tools) {
+      const defs = []
+      if (tools.includes('search')) defs.push({
+        name: 'web_search', description: 'Search the web for current information.',
+        parameters: { type: 'object', properties: { query: { type: 'string', description: 'Search query' } }, required: ['query'] },
+      })
+      if (tools.includes('code')) defs.push({
+        name: 'code_exec', description: 'Execute JavaScript code. Returns the result.',
+        parameters: { type: 'object', properties: { code: { type: 'string', description: 'JavaScript code' } }, required: ['code'] },
+      })
+      return defs
+    }
+    // ── Anthropic provider ──
+    async function anthropicChat(messages, tools, config) {
+      const base = (config.baseUrl || 'https://api.anthropic.com').replace(/\/+$/, '')
+      const endpoint = base.endsWith('/v1') ? `${base}/messages` : `${base}/v1/messages`
+      const body = {
+        model: config.model || 'claude-sonnet-4-20250514', max_tokens: 4096,
+        messages: messages.map(m => {
+          if (m.role === 'user' && Array.isArray(m.content) && m.content[0]?.type === 'tool_result') return m
+          return { role: m.role, content: m.content }
+        }),
+      }
+      if (tools.length) body.tools = tools.map(t => ({ name: t.name, description: t.description, input_schema: t.parameters }))
+      const res = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-api-key': config.apiKey, 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true' },
+        body: JSON.stringify(body),
+      })
+      if (!res.ok) throw new Error(`API ${res.status}: ${await res.text()}`)
+      const data = await res.json()
+      let text = ''; const toolCalls = []
+      for (const b of data.content) {
+        if (b.type === 'text') text += b.text
+        else if (b.type === 'tool_use') toolCalls.push({ id: b.id, name: b.name, input: b.input || {} })
+      }
+      return { text, toolCalls, rawContent: data.content, usage: { input: data.usage.input_tokens, output: data.usage.output_tokens }, stopReason: data.stop_reason === 'tool_use' ? 'tool_use' : 'end' }
+    }
+
+    // ── OpenAI provider (streaming) ──
+    async function openaiChat(messages, tools, config, onToken) {
+      const base = (config.baseUrl || 'https://api.openai.com').replace(/\/+$/, '')
+      const endpoint = base.endsWith('/v1') ? `${base}/chat/completions` : `${base}/v1/chat/completions`
+      const body = {
+        model: config.model || 'gpt-4o', stream: true,
+        messages: messages.map(m => {
+          if (m.role === 'user' && Array.isArray(m.content) && m.content[0]?.type === 'tool_result')
+            return m.content.map(c => ({ role: 'tool', tool_call_id: c.tool_use_id, content: c.content }))
+          return { role: m.role, content: typeof m.content === 'string' ? m.content : JSON.stringify(m.content) }
+        }).flat(),
+      }
+      if (tools.length) body.tools = tools.map(t => ({ type: 'function', function: { name: t.name, description: t.description, parameters: t.parameters } }))
+
+      const res = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${config.apiKey}` },
+        body: JSON.stringify(body),
+      })
+      if (!res.ok) throw new Error(`API ${res.status}: ${await res.text()}`)
+
+      // Read streaming response
+      const reader = res.body.getReader()
+      const decoder = new TextDecoder()
+      let buf = '', text = '', tcMap = {}
+
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+        buf += decoder.decode(value, { stream: true })
+        const lines = buf.split('\n'); buf = lines.pop()
+        for (const line of lines) {
+          if (!line.startsWith('data: ') || line === 'data: [DONE]') continue
+          try {
+            const chunk = JSON.parse(line.slice(6))
+            const delta = chunk.choices?.[0]?.delta
+            if (delta?.content) { text += delta.content; if (onToken) onToken(delta.content) }
+            if (delta?.tool_calls) {
+              for (const tc of delta.tool_calls) {
+                const idx = tc.index ?? 0
+                if (!tcMap[idx]) tcMap[idx] = { id: '', name: '', args: '' }
+                if (tc.id) tcMap[idx].id = tc.id
+                if (tc.function?.name) tcMap[idx].name = tc.function.name
+                if (tc.function?.arguments) tcMap[idx].args += tc.function.arguments
+              }
+            }
+          } catch {}
+        }
+      }
+
+      const toolCalls = Object.values(tcMap).filter(t => t.name).map(t => {
+        let input = {}; try { input = JSON.parse(t.args || '{}') } catch {}
+        return { id: t.id, name: t.name, input }
+      })
+      return { text, toolCalls, usage: { input: 0, output: 0 }, stopReason: toolCalls.length ? 'tool_use' : 'end' }
+    }
+
+    // ── Tool execution ──
+    async function execTool(tc, config, acc) {
+      if (tc.name === 'web_search') {
+        const key = config.searchApiKey
+        if (!key) return 'No Tavily API key provided'
+        const res = await fetch('https://api.tavily.com/search', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ api_key: key, query: tc.input.query, max_results: 5, include_images: true }),
+        })
+        const data = await res.json()
+        if (data.results) acc.sources.push(...data.results.map(r => ({ title: r.title, url: r.url, snippet: r.content?.slice(0, 200) })))
+        if (data.images) acc.images.push(...data.images)
+        return (data.results || []).map(r => `${r.title}: ${r.content?.slice(0, 300)}`).join('\n\n')
+      }
+      if (tc.name === 'code_exec') {
+        try {
+          const result = new Function(tc.input.code)()
+          const output = String(result)
+          acc.codeResults.push({ code: tc.input.code, output })
+          return output
+        } catch (e) {
+          acc.codeResults.push({ code: tc.input.code, error: e.message })
+          return `Error: ${e.message}`
+        }
+      }
+      return 'Unknown tool'
+    }
+
+    // ── Main run function ──
+    async function run() {
+      const area = document.getElementById('resultArea')
+      const btn = document.getElementById('runBtn')
+      const prompt = document.getElementById('prompt').value.trim()
+      const apiKey = document.getElementById('apiKey').value.trim()
+      if (!prompt || !apiKey) { area.innerHTML = '<div class="result-card"><div class="error-text">Need prompt and API key</div></div>'; return }
+
+      const provider = document.getElementById('provider').value
+      const baseUrl = document.getElementById('baseUrl').value.trim() || undefined
+      const model = document.getElementById('model').value.trim() || undefined
+      const searchApiKey = document.getElementById('searchApiKey').value.trim() || undefined
+      const tools = [...document.querySelectorAll('.tool-chip.active')].map(c => c.dataset.tool)
+      const config = { provider, apiKey, baseUrl, model, searchApiKey }
+
+      btn.disabled = true; btn.textContent = 'Running...'
+      area.innerHTML = '<div class="loading-text" id="statusText">⏳ Starting...</div>'
+
+      const chat = provider === 'anthropic' ? anthropicChat : openaiChat
+      const toolDefs = buildToolDefs(tools)
+      const messages = [{ role: 'user', content: prompt }]
+      const acc = { sources: [], codeResults: [], images: [], toolCalls: [] }
+      let streamText = '', isStreaming = false
+
+      const onToken = (t) => {
+        if (!isStreaming) {
+          isStreaming = true
+          area.innerHTML = '<div class="result-card"><div class="md-content" id="streamContent"></div></div>'
+        }
+        streamText += t
+        document.getElementById('streamContent').innerHTML = marked.parse(streamText)
+      }
+
+      try {
+        for (let i = 0; i < MAX_ROUNDS; i++) {
+          const st = document.getElementById('statusText')
+          if (st) st.textContent = `⏳ Round ${i+1}: calling LLM...`
+
+          const res = await chat(messages, toolDefs, config, onToken)
+
+          if (res.stopReason !== 'tool_use' || !res.toolCalls.length) {
+            renderResult({ answer: res.text || streamText, sources: acc.sources, images: acc.images, codeResults: acc.codeResults, toolCalls: acc.toolCalls })
+            break
+          }
+
+          // Execute tools
+          const results = []
+          for (const tc of res.toolCalls) {
+            if (st) st.textContent = `🔧 Executing ${tc.name}...`
+            const output = await execTool(tc, config, acc)
+            acc.toolCalls.push({ tool: tc.name, input: tc.input, output })
+            results.push(String(output))
+          }
+
+          // Build next messages
+          if (provider === 'anthropic') {
+            messages.push({ role: 'assistant', content: res.rawContent || res.text })
+            messages.push({ role: 'user', content: res.toolCalls.map((tc, idx) => ({
+              type: 'tool_result', tool_use_id: tc.id, content: results[idx],
+            })) })
+          } else {
+            const summary = res.toolCalls.map(tc => `Called ${tc.name}(${JSON.stringify(tc.input)})`).join('\n')
+            messages.push({ role: 'assistant', content: [res.text, summary].filter(Boolean).join('\n') })
+            messages.push({ role: 'user', content: `Tool results:\n${results.join('\n')}\n\nProvide the final answer.` })
+            // Reset streaming for final answer
+            streamText = ''; isStreaming = false
+          }
+        }
+      } catch (err) {
+        area.innerHTML = `<div class="result-card"><div class="error-text">${esc(err.message)}</div></div>`
+      } finally {
+        btn.disabled = false; btn.textContent = 'Run'
+      }
+    }
+
+    // ── Render result ──
+    function renderResult(data) {
+      const area = document.getElementById('resultArea')
+      let html = ''
+      const answer = data.answer || '(no answer)'
+      html += `<div class="result-card"><div class="md-content">${marked.parse(answer)}</div></div>`
+
+      if (data.sources?.length) {
+        html += `<div class="result-card"><div class="result-label">Sources (${data.sources.length})</div>
+          <div class="sources-list">${data.sources.map(s =>
+            `<div><a href="${s.url}" target="_blank">${esc(s.title||s.url)}</a>
+            ${s.snippet ? `<div class="source-snippet">${esc(s.snippet.slice(0,140))}...</div>` : ''}</div>`
+          ).join('')}</div></div>`
+      }
+
+      if (data.images?.length) {
+        html += `<div class="result-card"><div class="result-label">Images (${data.images.length})</div>
+          <div class="images-grid">${data.images.map(url =>
+            `<img src="${url}" loading="lazy" onclick="window.open('${url}','_blank')" onerror="this.style.display='none'">`
+          ).join('')}</div></div>`
+      }
+
+      if (data.codeResults?.length) {
+        html += `<div class="result-card"><div class="result-label">Code</div>
+          ${data.codeResults.map(c => `<pre><code>${esc(c.code)}</code></pre>
+            <div style="color:#4ade80;font-size:13px;margin-top:4px">→ ${esc(c.output||c.error||'')}</div>`
+          ).join('')}</div>`
+      }
+
+      area.innerHTML = html
+      area.querySelectorAll('pre code').forEach(b => hljs.highlightElement(b))
+    }
+
+  </script>
+</body>
+</html>

@@ -1,0 +1,653 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>agentic-core — The engine that powers your AI.</title>
+  <meta name="description" content="AI agent engine — one function call with built-in search, code execution, and file processing. Lighter than LangChain. Smarter than raw API calls.">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚡</text></svg>">
+
+  <!-- Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet">
+
+  <style>
+    :root {
+      --bg: #050505;
+      --surface: #0c0c0c;
+      --border: #1a1a1a;
+      --text: #e8e8e8;
+      --text-2: #888;
+      --text-3: #555;
+      --accent: #f5c518;
+      --accent-dim: #f5c51815;
+      --accent-mid: #f5c51840;
+      --code-bg: #0f0f0f;
+      --mono: 'JetBrains Mono', 'SF Mono', 'Fira Code', monospace;
+      --serif: 'Instrument Serif', Georgia, serif;
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      font-family: var(--mono);
+      background: var(--bg);
+      color: var(--text);
+      -webkit-font-smoothing: antialiased;
+      overflow-x: hidden;
+    }
+
+    /* ---- Noise overlay ---- */
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      opacity: 0.025;
+      pointer-events: none;
+      z-index: 9999;
+      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+    }
+
+    a { color: var(--accent); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+
+    .container {
+      max-width: 860px;
+      margin: 0 auto;
+      padding: 0 24px;
+    }
+
+    /* ---- Nav ---- */
+    nav {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      z-index: 100;
+      padding: 16px 24px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: rgba(5, 5, 5, 0.85);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--border);
+    }
+    nav .logo {
+      font-size: 15px;
+      font-weight: 600;
+      letter-spacing: -0.5px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      color: var(--text);
+    }
+    nav .logo span { color: var(--accent); }
+    nav .links {
+      display: flex;
+      gap: 24px;
+      align-items: center;
+      font-size: 13px;
+    }
+    nav .links a {
+      color: var(--text-2);
+      transition: color 0.2s;
+    }
+    nav .links a:hover { color: var(--text); text-decoration: none; }
+    nav .links a.gh {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    /* ---- Hero ---- */
+    .hero {
+      padding: 160px 0 100px;
+      text-align: center;
+      position: relative;
+    }
+    .hero::before {
+      content: '';
+      position: absolute;
+      top: 80px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 500px;
+      height: 500px;
+      background: radial-gradient(circle, var(--accent-dim) 0%, transparent 70%);
+      pointer-events: none;
+    }
+
+    .hero .tagline {
+      font-family: var(--serif);
+      font-size: clamp(40px, 7vw, 68px);
+      line-height: 1.05;
+      font-weight: 400;
+      letter-spacing: -1.5px;
+      margin-bottom: 24px;
+      position: relative;
+    }
+    .hero .tagline em {
+      font-style: italic;
+      color: var(--accent);
+    }
+    .hero .sub {
+      font-size: 15px;
+      color: var(--text-2);
+      max-width: 520px;
+      margin: 0 auto 40px;
+      line-height: 1.7;
+      font-weight: 400;
+    }
+
+    .hero-actions {
+      display: flex;
+      gap: 12px;
+      justify-content: center;
+      flex-wrap: wrap;
+    }
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 12px 24px;
+      border-radius: 8px;
+      font-size: 14px;
+      font-family: var(--mono);
+      font-weight: 500;
+      transition: all 0.2s;
+      border: 1px solid transparent;
+      cursor: pointer;
+    }
+    .btn-primary {
+      background: var(--accent);
+      color: #000;
+      border-color: var(--accent);
+    }
+    .btn-primary:hover {
+      opacity: 0.9;
+      text-decoration: none;
+    }
+    .btn-secondary {
+      background: transparent;
+      color: var(--text-2);
+      border-color: var(--border);
+    }
+    .btn-secondary:hover {
+      border-color: var(--text-3);
+      color: var(--text);
+      text-decoration: none;
+    }
+
+    /* ---- Install bar ---- */
+    .install-bar {
+      margin: 48px auto 0;
+      max-width: 380px;
+      background: var(--code-bg);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 14px 20px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-size: 14px;
+      cursor: pointer;
+      transition: border-color 0.2s;
+    }
+    .install-bar:hover { border-color: var(--text-3); }
+    .install-bar code { color: var(--text-2); }
+    .install-bar code span { color: var(--accent); }
+    .install-bar .copy {
+      color: var(--text-3);
+      font-size: 12px;
+      transition: color 0.2s;
+    }
+    .install-bar:hover .copy { color: var(--text-2); }
+
+    /* ---- Code showcase ---- */
+    .showcase {
+      padding: 80px 0;
+    }
+    .showcase pre {
+      background: var(--code-bg);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 28px 32px;
+      overflow-x: auto;
+      font-size: 14px;
+      line-height: 1.8;
+      position: relative;
+    }
+    .showcase pre .line-comment { color: var(--text-3); }
+    .showcase pre .line-keyword { color: #c792ea; }
+    .showcase pre .line-fn { color: var(--accent); }
+    .showcase pre .line-string { color: #c3e88d; }
+    .showcase pre .line-prop { color: #89ddff; }
+    .showcase pre .line-comment2 { color: #546e7a; }
+    .showcase pre .line-type { color: #ffcb6b; }
+    .showcase pre .line-number { color: #f78c6c; }
+
+    .showcase .window-dots {
+      display: flex;
+      gap: 6px;
+      margin-bottom: 20px;
+    }
+    .showcase .window-dots span {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: var(--border);
+    }
+
+    /* ---- Features ---- */
+    .features {
+      padding: 40px 0 100px;
+    }
+    .features h2 {
+      font-family: var(--serif);
+      font-size: 36px;
+      font-weight: 400;
+      letter-spacing: -0.5px;
+      margin-bottom: 48px;
+      text-align: center;
+    }
+    .feature-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 1px;
+      background: var(--border);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      overflow: hidden;
+    }
+    .feature-card {
+      background: var(--surface);
+      padding: 32px 28px;
+    }
+    .feature-card .icon {
+      font-size: 20px;
+      margin-bottom: 16px;
+      display: block;
+    }
+    .feature-card h3 {
+      font-size: 14px;
+      font-weight: 600;
+      margin-bottom: 8px;
+      letter-spacing: -0.3px;
+    }
+    .feature-card p {
+      font-size: 13px;
+      color: var(--text-2);
+      line-height: 1.6;
+    }
+
+    /* ---- Provider section ---- */
+    .providers {
+      padding: 60px 0 100px;
+    }
+    .providers h2 {
+      font-family: var(--serif);
+      font-size: 36px;
+      font-weight: 400;
+      letter-spacing: -0.5px;
+      margin-bottom: 16px;
+      text-align: center;
+    }
+    .providers .sub {
+      text-align: center;
+      color: var(--text-2);
+      font-size: 14px;
+      margin-bottom: 40px;
+    }
+    .provider-tabs {
+      display: flex;
+      gap: 0;
+      border: 1px solid var(--border);
+      border-radius: 10px 10px 0 0;
+      overflow: hidden;
+      background: var(--surface);
+    }
+    .provider-tab {
+      flex: 1;
+      padding: 12px 16px;
+      text-align: center;
+      font-size: 13px;
+      color: var(--text-3);
+      cursor: pointer;
+      transition: all 0.2s;
+      border-right: 1px solid var(--border);
+      background: transparent;
+      border-top: none;
+      border-bottom: none;
+      border-left: none;
+      font-family: var(--mono);
+    }
+    .provider-tab:last-child { border-right: none; }
+    .provider-tab:hover { color: var(--text-2); }
+    .provider-tab.active {
+      color: var(--accent);
+      background: var(--code-bg);
+    }
+    .provider-code {
+      background: var(--code-bg);
+      border: 1px solid var(--border);
+      border-top: none;
+      border-radius: 0 0 10px 10px;
+      padding: 24px 28px;
+      font-size: 14px;
+      line-height: 1.8;
+      white-space: pre;
+      overflow-x: auto;
+      display: none;
+    }
+    .provider-code.active { display: block; }
+
+    /* ---- Response section ---- */
+    .response {
+      padding: 40px 0 100px;
+    }
+    .response h2 {
+      font-family: var(--serif);
+      font-size: 36px;
+      font-weight: 400;
+      letter-spacing: -0.5px;
+      margin-bottom: 16px;
+      text-align: center;
+    }
+    .response .sub {
+      text-align: center;
+      color: var(--text-2);
+      font-size: 14px;
+      margin-bottom: 40px;
+    }
+    .response-schema {
+      background: var(--code-bg);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 28px 32px;
+      font-size: 14px;
+      line-height: 1.8;
+      white-space: pre;
+      overflow-x: auto;
+    }
+
+    /* ---- Comparison ---- */
+    .comparison {
+      padding: 40px 0 100px;
+    }
+    .comparison h2 {
+      font-family: var(--serif);
+      font-size: 36px;
+      font-weight: 400;
+      letter-spacing: -0.5px;
+      margin-bottom: 48px;
+      text-align: center;
+    }
+    .compare-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 1px;
+      background: var(--border);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      overflow: hidden;
+    }
+    .compare-cell {
+      background: var(--surface);
+      padding: 20px 24px;
+      font-size: 13px;
+    }
+    .compare-cell.header {
+      font-weight: 600;
+      font-size: 14px;
+      background: var(--code-bg);
+    }
+    .compare-cell.highlight {
+      color: var(--accent);
+    }
+    .compare-cell.dim {
+      color: var(--text-3);
+    }
+    .compare-cell.label {
+      color: var(--text-2);
+    }
+
+    /* ---- Footer ---- */
+    footer {
+      border-top: 1px solid var(--border);
+      padding: 40px 0;
+      text-align: center;
+      font-size: 13px;
+      color: var(--text-3);
+    }
+    footer a { color: var(--text-2); }
+
+    /* ---- Responsive ---- */
+    @media (max-width: 768px) {
+      .feature-grid {
+        grid-template-columns: 1fr;
+      }
+      .compare-grid {
+        grid-template-columns: 1fr;
+      }
+      .compare-cell.header:not(:first-child) {
+        margin-top: -1px;
+      }
+      .hero .tagline {
+        font-size: 36px;
+      }
+      .showcase pre {
+        font-size: 12px;
+        padding: 20px;
+      }
+      nav .links { gap: 16px; }
+      .provider-tabs {
+        flex-direction: column;
+      }
+      .provider-tab {
+        border-right: none;
+        border-bottom: 1px solid var(--border);
+      }
+      .provider-tab:last-child { border-bottom: none; }
+    }
+
+    /* ---- Animations ---- */
+    @keyframes fadeUp {
+      from { opacity: 0; transform: translateY(20px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    .fade-up {
+      animation: fadeUp 0.6s ease-out both;
+    }
+    .fade-up-d1 { animation-delay: 0.1s; }
+    .fade-up-d2 { animation-delay: 0.2s; }
+    .fade-up-d3 { animation-delay: 0.3s; }
+    .fade-up-d4 { animation-delay: 0.4s; }
+  </style>
+</head>
+<body>
+
+  <!-- Nav -->
+  <nav>
+    <div class="logo"><span>⚡</span> agentic-core</div>
+    <div class="links">
+      <a href="#features">Features</a>
+      <a href="#providers">Providers</a>
+      <a href="./index-client.html">Playground</a>
+      <a href="https://github.com/momomo-agent/agentic-core" class="gh">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/></svg>
+        GitHub
+      </a>
+    </div>
+  </nav>
+
+  <!-- Hero -->
+  <section class="hero container">
+    <div class="tagline fade-up">LLM calls. Tools. Schema.<br><em>Zero dependencies.</em></div>
+    <p class="sub fade-up fade-up-d1">
+      Built-in search, code execution, and file processing.<br>
+      Lighter than LangChain. Smarter than raw API calls.
+    </p>
+    <div class="hero-actions fade-up fade-up-d2">
+      <a href="https://github.com/momomo-agent/agentic-core" class="btn btn-primary">Get Started</a>
+      <a href="./index-client.html" class="btn btn-secondary">Try Playground →</a>
+    </div>
+    <div class="install-bar fade-up fade-up-d3" onclick="navigator.clipboard.writeText('npm install agentic-core');this.querySelector('.copy').textContent='Copied!'">
+      <code>$ <span>npm</span> install agentic-core</code>
+      <span class="copy">Click to copy</span>
+    </div>
+  </section>
+
+  <!-- Code showcase -->
+  <section class="showcase container fade-up fade-up-d4">
+    <pre><div class="window-dots"><span></span><span></span><span></span></div><span class="line-keyword">import</span> { <span class="line-fn">ask</span> } <span class="line-keyword">from</span> <span class="line-string">'agentic-core'</span>
+
+<span class="line-keyword">const</span> result = <span class="line-keyword">await</span> <span class="line-fn">ask</span>(<span class="line-string">'Latest AI news today'</span>, {
+  <span class="line-prop">provider</span>: <span class="line-string">'openai'</span>,
+  <span class="line-prop">apiKey</span>:   process.env.<span class="line-type">OPENAI_API_KEY</span>,
+  <span class="line-prop">tools</span>:   [<span class="line-string">'search'</span>, <span class="line-string">'code'</span>],
+})
+
+result.<span class="line-prop">answer</span>      <span class="line-comment2">// → summarized response</span>
+result.<span class="line-prop">sources</span>     <span class="line-comment2">// → [{ title, url, snippet }]</span>
+result.<span class="line-prop">codeResults</span> <span class="line-comment2">// → [{ code, output }]</span>
+result.<span class="line-prop">images</span>      <span class="line-comment2">// → ["https://..."]</span></pre>
+  </section>
+
+  <!-- Features -->
+  <section class="features container" id="features">
+    <h2>Everything you need, nothing you don't</h2>
+    <div class="feature-grid">
+      <div class="feature-card">
+        <span class="icon">🔍</span>
+        <h3>Web Search</h3>
+        <p>Tavily-powered search with structured sources and image results. The model searches, you get citations.</p>
+      </div>
+      <div class="feature-card">
+        <span class="icon">💻</span>
+        <h3>Code Execution</h3>
+        <p>Sandboxed JS eval. Let the model compute, transform data, or verify answers with real code.</p>
+      </div>
+      <div class="feature-card">
+        <span class="icon">📁</span>
+        <h3>File I/O</h3>
+        <p>Read and write files. The model can process documents, generate outputs, and persist results.</p>
+      </div>
+      <div class="feature-card">
+        <span class="icon">🔄</span>
+        <h3>Multi-round Loop</h3>
+        <p>Up to 10 rounds of tool use. The model reasons, acts, observes — automatically.</p>
+      </div>
+      <div class="feature-card">
+        <span class="icon">🌊</span>
+        <h3>SSE Streaming</h3>
+        <p>Real-time status updates during tool execution. Token-by-token answer rendering.</p>
+      </div>
+      <div class="feature-card">
+        <span class="icon">🔌</span>
+        <h3>Any Provider</h3>
+        <p>Anthropic, OpenAI, or any OpenAI-compatible proxy. One interface, swap models freely.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- Providers -->
+  <section class="providers container" id="providers">
+    <h2>Works with your stack</h2>
+    <p class="sub">Anthropic, OpenAI, or bring your own endpoint.</p>
+
+    <div class="provider-tabs">
+      <button class="provider-tab active" data-tab="anthropic">Anthropic</button>
+      <button class="provider-tab" data-tab="openai">OpenAI</button>
+      <button class="provider-tab" data-tab="custom">Custom Proxy</button>
+    </div>
+    <div class="provider-code active" data-tab="anthropic"><span class="line-keyword">await</span> <span class="line-fn">ask</span>(<span class="line-string">'Explain quantum computing'</span>, {
+  <span class="line-prop">provider</span>: <span class="line-string">'anthropic'</span>,
+  <span class="line-prop">apiKey</span>:   <span class="line-string">'sk-ant-...'</span>,
+  <span class="line-prop">model</span>:    <span class="line-string">'claude-sonnet-4-20250514'</span>,
+  <span class="line-prop">tools</span>:   [<span class="line-string">'search'</span>, <span class="line-string">'code'</span>],
+})</div>
+    <div class="provider-code" data-tab="openai"><span class="line-keyword">await</span> <span class="line-fn">ask</span>(<span class="line-string">'Explain quantum computing'</span>, {
+  <span class="line-prop">provider</span>: <span class="line-string">'openai'</span>,
+  <span class="line-prop">apiKey</span>:   <span class="line-string">'sk-...'</span>,
+  <span class="line-prop">model</span>:    <span class="line-string">'gpt-4o'</span>,
+  <span class="line-prop">tools</span>:   [<span class="line-string">'search'</span>, <span class="line-string">'code'</span>],
+})</div>
+    <div class="provider-code" data-tab="custom"><span class="line-keyword">await</span> <span class="line-fn">ask</span>(<span class="line-string">'Explain quantum computing'</span>, {
+  <span class="line-prop">provider</span>: <span class="line-string">'openai'</span>,
+  <span class="line-prop">baseUrl</span>:  <span class="line-string">'https://my-proxy.com/v1'</span>,
+  <span class="line-prop">apiKey</span>:   <span class="line-string">'sk-...'</span>,
+  <span class="line-prop">model</span>:    <span class="line-string">'any-model'</span>,
+  <span class="line-prop">tools</span>:   [<span class="line-string">'search'</span>],
+})</div>
+  </section>
+
+  <!-- Response Schema -->
+  <section class="response container">
+    <h2>Structured, not stringly-typed</h2>
+    <p class="sub">Every call returns a typed result. No parsing, no guessing.</p>
+    <div class="response-schema">
+<span class="line-keyword">interface</span> <span class="line-type">AgenticResult</span> {
+  <span class="line-prop">answer</span>:       <span class="line-type">string</span>            <span class="line-comment2">// Final synthesized response</span>
+  <span class="line-prop">sources</span>?:     <span class="line-type">Source</span>[]          <span class="line-comment2">// Search citations</span>
+  <span class="line-prop">images</span>?:      <span class="line-type">string</span>[]          <span class="line-comment2">// Image URLs from search</span>
+  <span class="line-prop">codeResults</span>?: <span class="line-type">CodeResult</span>[]      <span class="line-comment2">// { code, output, error? }</span>
+  <span class="line-prop">files</span>?:       <span class="line-type">FileResult</span>[]      <span class="line-comment2">// { path, action, content? }</span>
+  <span class="line-prop">toolCalls</span>?:   <span class="line-type">ToolCall</span>[]        <span class="line-comment2">// Raw tool invocations</span>
+  <span class="line-prop">usage</span>?:       { <span class="line-prop">input</span>: <span class="line-type">number</span>; <span class="line-prop">output</span>: <span class="line-type">number</span> }
+}</div>
+  </section>
+
+  <!-- Comparison -->
+  <section class="comparison container">
+    <h2>How it compares</h2>
+    <div class="compare-grid">
+      <div class="compare-cell header label"></div>
+      <div class="compare-cell header">LangChain</div>
+      <div class="compare-cell header highlight">agentic-core</div>
+
+      <div class="compare-cell label">Install size</div>
+      <div class="compare-cell dim">~50MB</div>
+      <div class="compare-cell highlight">~200KB</div>
+
+      <div class="compare-cell label">API surface</div>
+      <div class="compare-cell dim">Chains, Agents, Tools, Memory, Callbacks, Runnables...</div>
+      <div class="compare-cell highlight">ask()</div>
+
+      <div class="compare-cell label">Concepts to learn</div>
+      <div class="compare-cell dim">15+</div>
+      <div class="compare-cell highlight">1</div>
+
+      <div class="compare-cell label">Dependencies</div>
+      <div class="compare-cell dim">50+</div>
+      <div class="compare-cell highlight">0</div>
+
+      <div class="compare-cell label">Time to first result</div>
+      <div class="compare-cell dim">~30 min</div>
+      <div class="compare-cell highlight">~2 min</div>
+    </div>
+  </section>
+
+  <!-- Footer -->
+  <footer>
+    <div class="container">
+      <p>MIT License · <a href="https://github.com/momomo-agent/agentic-core">GitHub</a> · <a href="https://www.npmjs.com/package/agentic-core">npm</a></p>
+    </div>
+  </footer>
+
+  <script>
+    // Provider tabs
+    document.querySelectorAll('.provider-tab').forEach(tab => {
+      tab.addEventListener('click', () => {
+        document.querySelectorAll('.provider-tab').forEach(t => t.classList.remove('active'))
+        document.querySelectorAll('.provider-code').forEach(c => c.classList.remove('active'))
+        tab.classList.add('active')
+        document.querySelector(`.provider-code[data-tab="${tab.dataset.tab}"]`).classList.add('active')
+      })
+    })
+  </script>
+</body>
+</html>
