@@ -109,18 +109,36 @@ describe('agentic-core: agenticAsk', () => {
   })
 
   it('4. stream=true calls emit callback', async () => {
-    // With proxyUrl, stream mode sends non-stream request then simulates via emit
-    // The proxy wrapper expects { success: true, body: <actual response>, status: 200 }
-    pushFetchResponse({
-      success: true,
+    // With proxyUrl, stream mode sends stream:true through transparent proxy
+    // The proxy returns real SSE events
+    const sseData = [
+      'event: message_start\ndata: {"type":"message_start","message":{"id":"msg_1","type":"message","role":"assistant","content":[],"model":"claude-test","stop_reason":null}}\n\n',
+      'event: content_block_start\ndata: {"type":"content_block_start","index":0,"content_block":{"type":"text","text":""}}\n\n',
+      'event: content_block_delta\ndata: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"Streamed"}}\n\n',
+      'event: content_block_delta\ndata: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":" response"}}\n\n',
+      'event: content_block_stop\ndata: {"type":"content_block_stop","index":0}\n\n',
+      'event: message_delta\ndata: {"type":"message_delta","delta":{"stop_reason":"end_turn"}}\n\n',
+      'event: message_stop\ndata: {"type":"message_stop"}\n\n',
+    ].join('')
+
+    // Override fetch for this test to return a ReadableStream
+    const savedFetch = globalThis.fetch
+    globalThis.fetch = mock.fn(async () => ({
+      ok: true,
       status: 200,
-      body: JSON.stringify(anthropicTextResponse('Streamed response')),
-    })
+      body: new ReadableStream({
+        start(controller) {
+          controller.enqueue(new TextEncoder().encode(sseData))
+          controller.close()
+        }
+      }),
+      headers: new Map(),
+    }))
 
     const emitted = []
     const emit = (type, data) => emitted.push({ type, data })
 
-    await agenticAsk('stream test', {
+    const result = await agenticAsk('stream test', {
       apiKey: 'sk-test',
       model: 'claude-test',
       tools: [],
@@ -128,9 +146,12 @@ describe('agentic-core: agenticAsk', () => {
       proxyUrl: 'http://proxy.test',
     }, emit)
 
+    globalThis.fetch = savedFetch
+
     // Should have emitted 'status' and 'token' events
     assert.ok(emitted.some(e => e.type === 'status'), 'should emit status')
-    assert.ok(emitted.some(e => e.type === 'token'), 'should emit token for simulated streaming')
+    assert.ok(emitted.some(e => e.type === 'token'), 'should emit token events')
+    assert.equal(result.answer, 'Streamed response')
   })
 
   it('5. throws error when no apiKey', async () => {

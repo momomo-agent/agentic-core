@@ -7,6 +7,15 @@ import { detectToolCallLoop, recordToolCall, recordToolCallOutcome } from './loo
 const MAX_ROUNDS = 200  // 安全兜底，实际由循环检测控制（与 OpenClaw 一致）
 
 export async function agenticAsk(prompt, config, emit) {
+  try {
+    return await _agenticAsk(prompt, config, emit)
+  } catch (e) {
+    // Ensure all errors are Error instances
+    throw e instanceof Error ? e : new Error(String(e))
+  }
+}
+
+async function _agenticAsk(prompt, config, emit) {
   const { provider = 'anthropic', baseUrl, apiKey, model, tools = ['search', 'code'], searchApiKey, history, proxyUrl, stream = true, schema, retries = 2, system } = config
   
   if (!apiKey) throw new Error('API Key required')
@@ -152,18 +161,15 @@ async function anthropicChat({ messages, tools, model = 'claude-sonnet-4', baseU
   }
 
   if (stream && proxyUrl) {
-    // Stream via proxy: send non-stream request, simulate token output
-    body.stream = false
+    // Stream via transparent proxy (Vercel Edge / similar)
+    // Send stream:true request through proxy with custom headers
+    const proxyHeaders = { ...headers, 'x-base-url': baseUrl || 'https://api.anthropic.com', 'x-provider': 'anthropic' }
+    return await streamAnthropic(proxyUrl, proxyHeaders, body, emit)
   }
 
   const response = await callLLM(url, apiKey, body, proxyUrl, true)
   
   const text = response.content.find(c => c.type === 'text')?.text || ''
-  
-  // Simulate streaming if requested
-  if (stream && proxyUrl && text) {
-    simulateStream(text, emit)
-  }
   
   return {
     content: text,
@@ -184,13 +190,12 @@ async function openaiChat({ messages, tools, model = 'gpt-4', baseUrl = 'https:/
   const headers = { 'content-type': 'application/json', 'authorization': `Bearer ${apiKey}` }
 
   if (stream && !proxyUrl) {
-    // Stream mode — direct SSE
     return await streamOpenAI(url, headers, body, emit)
   }
 
   if (stream && proxyUrl) {
-    // Stream via proxy: send non-stream request, simulate token output
-    body.stream = false
+    const proxyHeaders = { ...headers, 'x-base-url': baseUrl || 'https://api.openai.com', 'x-provider': 'openai', 'x-api-key': apiKey }
+    return await streamOpenAI(proxyUrl, proxyHeaders, body, emit)
   }
 
   const response = await callLLM(url, apiKey, body, proxyUrl, false)
@@ -205,11 +210,6 @@ async function openaiChat({ messages, tools, model = 'gpt-4', baseUrl = 'https:/
   
   const text = choice.message?.content || ''
   
-  // Simulate streaming if requested
-  if (stream && proxyUrl && text) {
-    simulateStream(text, emit)
-  }
-  
   return {
     content: text,
     tool_calls: choice.message?.tool_calls?.map(t => {
@@ -222,13 +222,6 @@ async function openaiChat({ messages, tools, model = 'gpt-4', baseUrl = 'https:/
 }
 
 // ── Streaming Functions ──
-
-// Simulate streaming for proxy mode (proxy can't forward SSE)
-function simulateStream(text, emit) {
-  // Emit the full text at once as a single token event
-  // The renderer handles incremental append, so this works fine
-  emit('token', { text })
-}
 
 async function streamAnthropic(url, headers, body, emit) {
   const res = await fetch(url, { method: 'POST', headers, body: JSON.stringify(body) })
@@ -362,21 +355,23 @@ async function callLLM(url, apiKey, body, proxyUrl, isAnthropic = false) {
   }
   
   if (proxyUrl) {
+    // Transparent proxy — pass config via headers, body goes through directly
+    const proxyHeaders = {
+      ...headers,
+      'x-base-url': url.replace(/\/v1\/.*$/, ''),
+      'x-provider': isAnthropic ? 'anthropic' : 'openai',
+      'x-api-key': apiKey,
+    }
     const response = await fetch(proxyUrl, {
       method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ url, method: 'POST', headers, body: JSON.stringify(body), mode: 'raw' })
+      headers: proxyHeaders,
+      body: JSON.stringify(body),
     })
-    const result = await response.json()
-    if (!result.success) throw new Error(result.error || `Proxy failed: ${result.status}`)
-    const rawBody = typeof result.body === 'string' ? result.body : JSON.stringify(result.body)
-    if (result.status >= 400) throw new Error(`API error ${result.status}: ${rawBody.slice(0, 300)}`)
-    try {
-      if (rawBody.trimStart().startsWith('data: ')) return reassembleSSE(rawBody)
-      return JSON.parse(rawBody)
-    } catch (e) {
-      throw new Error(`Response parse error: ${e.message}. Body starts with: ${rawBody.slice(0, 100)}`)
+    if (!response.ok) {
+      const text = await response.text()
+      throw new Error(`API error ${response.status}: ${text.slice(0, 300)}`)
     }
+    return await response.json()
   } else {
     const response = await fetch(url, { method: 'POST', headers, body: JSON.stringify(body) })
     if (!response.ok) {
