@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>agentic-lite</title>
+  <title>agentic-core</title>
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚡</text></svg>">
   <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/highlight.js@11/highlight.min.js"></script>
@@ -132,7 +132,7 @@
 <body>
   <div class="panel-left">
     <div class="panel-left-header">
-      <h1><span>⚡</span> agentic-lite</h1>
+      <h1><span>⚡</span> agentic-core</h1>
       <p>One function call. Built-in search, code, file tools.</p>
     </div>
     <div class="result-area" id="resultArea">
@@ -194,7 +194,7 @@
     })
 
     // localStorage persistence
-    const STORAGE_KEY = 'agentic-lite-config'
+    const STORAGE_KEY = 'agentic-core-config'
     function loadConfig() {
       try {
         const s = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}')
