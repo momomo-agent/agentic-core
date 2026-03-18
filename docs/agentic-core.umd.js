@@ -11,7 +11,7 @@
 ;(function (root, factory) {
   if (typeof module === 'object' && module.exports) module.exports = factory()
   else if (typeof define === 'function' && define.amd) define(factory)
-  else root.AgenticCore = factory()
+  else { var f = factory(); root.AgenticCore = f; root.AgenticAgent = f }
 })(typeof globalThis !== 'undefined' ? globalThis : this, function () {
 
 // ── Loop Detection (inlined) ──
