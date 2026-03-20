@@ -367,7 +367,16 @@ async function _agenticAsk(prompt, config, emit) {
     
     // Execute tools
     console.log(`[Round ${round}] Executing ${response.tool_calls.length} tool calls...`)
-    messages.push({ role: 'assistant', content: response.content, tool_calls: response.tool_calls })
+    // Normalize tool_calls to OpenAI format for multi-round consistency
+    const normalizedCalls = response.tool_calls.map(tc => ({
+      id: tc.id,
+      type: 'function',
+      function: { name: tc.name, arguments: JSON.stringify(tc.input || {}) },
+      // Keep original fields for internal use
+      name: tc.name,
+      input: tc.input,
+    }))
+    messages.push({ role: 'assistant', content: response.content, tool_calls: normalizedCalls })
     
     for (const call of response.tool_calls) {
       console.log(`[Round ${round}] Tool: ${call.name}, Input:`, JSON.stringify(call.input).slice(0, 100))
