@@ -16,7 +16,7 @@ export async function agenticAsk(prompt, config, emit) {
 }
 
 async function _agenticAsk(prompt, config, emit) {
-  const { provider = 'anthropic', baseUrl, apiKey, model, tools = ['search', 'code'], searchApiKey, history, proxyUrl, stream = true, schema, retries = 2, system } = config
+  const { provider = 'anthropic', baseUrl, apiKey, model, tools = ['search', 'code'], searchApiKey, history, proxyUrl, stream = true, schema, retries = 2, system, images } = config
   
   if (!apiKey) throw new Error('API Key required')
   
@@ -32,7 +32,23 @@ async function _agenticAsk(prompt, config, emit) {
   if (history?.length) {
     messages.push(...history)
   }
-  messages.push({ role: 'user', content: prompt })
+  
+  // Build user message — support vision (images)
+  if (images?.length) {
+    const content = []
+    for (const img of images) {
+      if (provider === 'anthropic') {
+        content.push({ type: 'image', source: { type: 'base64', media_type: img.media_type || 'image/jpeg', data: img.data } })
+      } else {
+        const url = img.url || `data:${img.media_type || 'image/jpeg'};base64,${img.data}`
+        content.push({ type: 'image_url', image_url: { url, detail: img.detail || 'low' } })
+      }
+    }
+    content.push({ type: 'text', text: prompt })
+    messages.push({ role: 'user', content })
+  } else {
+    messages.push({ role: 'user', content: prompt })
+  }
   
   let round = 0
   let finalAnswer = null
