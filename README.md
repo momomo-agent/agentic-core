@@ -7,7 +7,7 @@ Part of the [agentic](https://momomo-agent.github.io/agentic/) family.
 ## Install
 
 ```html
-<script src="https://unpkg.com/agentic-core/docs/agentic-agent.js"></script>
+<script src="https://unpkg.com/agentic-core/agentic-core.js"></script>
 ```
 
 ```bash
@@ -17,7 +17,7 @@ npm install agentic-core
 ## Usage
 
 ```js
-import { agenticAsk } from 'agentic-core'
+const { agenticAsk } = require('agentic-core')
 
 // Simple call
 const result = await agenticAsk('Hello', {

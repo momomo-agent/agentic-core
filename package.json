@@ -2,10 +2,9 @@
   "name": "agentic-core",
   "version": "0.2.0",
   "description": "AI agent engine — LLM calls, tools, schema, streaming. Zero dependencies.",
-  "type": "module",
-  "main": "docs/agentic-agent.js",
-  "browser": "docs/agentic-agent.js",
-  "files": ["docs/agentic-agent.js", "docs/loop-detection.js", "README.md"],
+  "main": "agentic-core.js",
+  "browser": "agentic-core.js",
+  "files": ["agentic-core.js", "README.md"],
   "keywords": ["agent", "ai", "llm", "tools", "schema", "streaming", "zero-dependency"],
   "license": "MIT",
   "repository": {

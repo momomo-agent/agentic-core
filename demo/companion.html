@@ -363,8 +363,9 @@
     <div class="presence" id="presence">∞</div>
   </div>
 
-  <script type="module">
-    import { agenticAsk } from './agentic-agent.js'
+  <script src="../agentic-core.js"></script>
+  <script>
+    const { agenticAsk } = window
 
     // ── Config ──
     const STORAGE_KEY = 'companion-ui-config'
