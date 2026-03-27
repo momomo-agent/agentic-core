@@ -1,6 +1,7 @@
 {
   "name": "agentic-core",
   "version": "0.2.0",
+  "type": "module",
   "description": "AI agent engine — LLM calls, tools, schema, streaming. Zero dependencies.",
   "main": "agentic-core.js",
   "browser": "agentic-core.js",
