@@ -544,7 +544,7 @@ async function schemaAsk(prompt, config, emit) {
   
   for (let attempt = 0; attempt <= retries; attempt++) {
     if (attempt > 0) {
-      console.log(`[schema] Retry ${attempt}/${retries}: ${lastError}`)
+      console.log(`[schema] Retry ${attempt}/${retries}:`, typeof lastError === 'object' ? JSON.stringify(lastError) : lastError)
       emit('status', { message: `Retry ${attempt}/${retries}...` })
       // Add error feedback for retry
       messages.push({ role: 'assistant', content: lastError.raw })
