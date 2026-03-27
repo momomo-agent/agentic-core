@@ -162,7 +162,7 @@ async function anthropicChat({ messages, tools, model = 'claude-sonnet-4', baseU
   
   const body = {
     model,
-    max_tokens: 4096,
+    max_tokens: 16384,
     messages: anthropicMessages,
     stream,
   }
@@ -200,7 +200,7 @@ async function openaiChat({ messages, tools, model = 'gpt-4', baseUrl = 'https:/
   const base = baseUrl.replace(/\/+$/, '')
   const url = base.includes('/v1') ? `${base}/chat/completions` : `${base}/v1/chat/completions`
   const oaiMessages = system ? [{ role: 'system', content: system }, ...messages] : messages
-  const body = { model, messages: oaiMessages, stream }
+  const body = { model, messages: oaiMessages, stream, max_tokens: 16384 }
   if (tools?.length) body.tools = tools.map(t => ({ type: 'function', function: t }))
   
   const headers = { 'content-type': 'application/json', 'authorization': `Bearer ${apiKey}` }
