@@ -41,7 +41,7 @@ async function _agenticAsk(prompt, config, emit) {
         content.push({ type: 'image', source: { type: 'base64', media_type: img.media_type || 'image/jpeg', data: img.data } })
       } else {
         const url = img.url || `data:${img.media_type || 'image/jpeg'};base64,${img.data}`
-        content.push({ type: 'image_url', image_url: { url, detail: img.detail || 'low' } })
+        content.push({ type: 'image_url', image_url: { url, detail: img.detail || 'auto' } })
       }
     }
     content.push({ type: 'text', text: prompt })
