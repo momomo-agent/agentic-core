@@ -1,7 +1,7 @@
 ;(function(root, factory) {
   if (typeof module === 'object' && module.exports) module.exports = factory()
   else if (typeof define === 'function' && define.amd) define(factory)
-  else { var e = factory(); for (var k in e) root[k] = e[k] }
+  else { var e = factory(); root.AgenticCore = e; for (var k in e) root[k] = e[k] }
 })(typeof globalThis !== 'undefined' ? globalThis : typeof self !== 'undefined' ? self : this, function() {
   'use strict'
 
