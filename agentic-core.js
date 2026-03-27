@@ -818,10 +818,26 @@ async function searchWeb(query, apiKey) {
 // ── Schema Mode (Structured Output) ──
 
 async function schemaAsk(prompt, config, emit) {
-  const { provider = 'anthropic', baseUrl, apiKey, model, history, proxyUrl, schema, retries = 2 } = config
+  const { provider = 'anthropic', baseUrl, apiKey, model, history, proxyUrl, schema, retries = 2, images } = config
   
   const schemaStr = JSON.stringify(schema, null, 2)
   const systemPrompt = `You must respond with valid JSON that matches this schema:\n${schemaStr}\n\nRules:\n- Output ONLY the JSON object, no markdown, no explanation, no code fences\n- All required fields must be present\n- Types must match exactly`
+  
+  // Build user content — support vision images
+  let userContent = systemPrompt + '\n\n' + prompt
+  if (images?.length) {
+    const content = []
+    for (const img of images) {
+      if (provider === 'anthropic') {
+        content.push({ type: 'image', source: { type: 'base64', media_type: img.media_type || 'image/jpeg', data: img.data } })
+      } else {
+        const url = img.url || `data:${img.media_type || 'image/jpeg'};base64,${img.data}`
+        content.push({ type: 'image_url', image_url: { url, detail: img.detail || 'auto' } })
+      }
+    }
+    content.push({ type: 'text', text: systemPrompt + '\n\n' + prompt })
+    userContent = content
+  }
   
   const messages = []
   if (history?.length) messages.push(...history)
@@ -842,7 +858,7 @@ async function schemaAsk(prompt, config, emit) {
     
     const chatFn = provider === 'anthropic' ? anthropicChat : openaiChat
     const response = await chatFn({
-      messages: [{ role: 'user', content: systemPrompt + '\n\n' + prompt }],
+      messages: [{ role: 'user', content: userContent }],
       tools: [], model, baseUrl, apiKey, proxyUrl, stream: false, emit
     })
     
