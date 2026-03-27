@@ -42,7 +42,7 @@ afterEach(() => {
 })
 
 // Import the module (ES module with relative imports)
-const mod = await import(join(__dirname, '..', 'docs', 'agentic-agent.js'))
+const mod = await import(join(__dirname, '..', 'agentic-core.js'))
 const { agenticAsk } = mod
 
 // Helper: create Anthropic-style non-stream response (end_turn, no tools)
