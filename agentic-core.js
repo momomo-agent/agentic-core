@@ -357,7 +357,7 @@ async function _agenticAsk(prompt, config, emit) {
     
     console.log(`[Round ${round}] LLM Response:`)
     console.log(`  - stop_reason: ${response.stop_reason}`)
-    console.log(`  - content: ${response.content.slice(0, 100)}...`)
+    console.log(`  - content:`, response.content)
     console.log(`  - tool_calls: ${response.tool_calls?.length || 0}`)
     
     // Check if done
@@ -372,7 +372,7 @@ async function _agenticAsk(prompt, config, emit) {
     messages.push({ role: 'assistant', content: response.content, tool_calls: response.tool_calls })
     
     for (const call of response.tool_calls) {
-      console.log(`[Round ${round}] Tool: ${call.name}, Input:`, JSON.stringify(call.input).slice(0, 100))
+      console.log(`[Round ${round}] Tool: ${call.name}, Input:`, call.input)
       
       recordToolCall(state, call.name, call.input)
       
@@ -390,7 +390,7 @@ async function _agenticAsk(prompt, config, emit) {
       
       emit('tool', { name: call.name, input: call.input })
       const result = await executeTool(call.name, call.input, { searchApiKey, customTools })
-      console.log(`[Round ${round}] Tool result:`, JSON.stringify(result).slice(0, 100))
+      console.log(`[Round ${round}] Tool result:`, result)
       
       recordToolCallOutcome(state, call.name, call.input, result, null)
       messages.push({ role: 'tool', tool_call_id: call.id, content: JSON.stringify(result) })
