@@ -767,6 +767,15 @@ function buildToolDefs(tools) {
   const defs = []
   const customTools = []
   
+  // Add registry tools first
+  for (const tool of toolRegistry.list()) {
+    defs.push({
+      name: tool.name,
+      description: tool.description,
+      input_schema: tool.parameters
+    })
+  }
+  
   for (const tool of tools) {
     if (typeof tool === 'string') {
       // Built-in tool
@@ -790,7 +799,13 @@ function buildToolDefs(tools) {
 }
 
 async function executeTool(name, input, config) {
-  // Check custom tools first
+  // Check registry first
+  const registered = toolRegistry.get(name)
+  if (registered && registered.execute) {
+    return await registered.execute(input)
+  }
+  
+  // Check custom tools
   if (config.customTools) {
     const custom = config.customTools.find(t => t.name === name)
     if (custom && custom.execute) {
@@ -934,5 +949,43 @@ function validateSchema(data, schema) {
   return { valid: true }
 }
 
-  return { agenticAsk }
+// ── Tool Registry ──
+
+const toolRegistry = {
+  _tools: new Map(),
+  
+  register(name, tool) {
+    if (!name || typeof name !== 'string') throw new Error('Tool name required')
+    if (!tool || typeof tool !== 'object') throw new Error('Tool must be an object')
+    if (!tool.description) throw new Error('Tool description required')
+    if (!tool.execute || typeof tool.execute !== 'function') throw new Error('Tool execute function required')
+    
+    this._tools.set(name, {
+      name,
+      description: tool.description,
+      parameters: tool.parameters || { type: 'object', properties: {} },
+      execute: tool.execute
+    })
+  },
+  
+  unregister(name) {
+    this._tools.delete(name)
+  },
+  
+  get(name) {
+    return this._tools.get(name)
+  },
+  
+  list(category) {
+    const tools = Array.from(this._tools.values())
+    if (!category) return tools
+    return tools.filter(t => t.category === category)
+  },
+  
+  clear() {
+    this._tools.clear()
+  }
+}
+
+  return { agenticAsk, toolRegistry }
 })

@@ -61,9 +61,52 @@ await agenticAsk('Tell me a story', {
 })
 ```
 
+## Tool Registry
+
+Register tools globally, then use them in any `agenticAsk` call without passing them explicitly.
+
+```js
+const { toolRegistry } = require('agentic-core')
+
+// Register a tool
+toolRegistry.register('weather', {
+  description: 'Get current weather for a city',
+  parameters: {
+    type: 'object',
+    properties: {
+      city: { type: 'string', description: 'City name' }
+    },
+    required: ['city']
+  },
+  execute: async ({ city }) => {
+    // Your implementation
+    return { temperature: 25, condition: 'sunny' }
+  }
+})
+
+// Now it's automatically available
+const result = await agenticAsk('What is the weather in Beijing?', {
+  apiKey: 'sk-...',
+  tools: [] // Registry tools are auto-included
+})
+
+// List all registered tools
+const tools = toolRegistry.list()
+
+// Get a specific tool
+const weatherTool = toolRegistry.get('weather')
+
+// Unregister
+toolRegistry.unregister('weather')
+
+// Clear all
+toolRegistry.clear()
+```
+
 ## Features
 
 - **Multi-provider**: Anthropic, OpenAI, any OpenAI-compatible API
+- **Tool registry**: Register tools globally, auto-discover in all calls
 - **Tool execution**: Built-in search/code + custom tools
 - **Schema mode**: JSON validation + auto-retry for structured output
 - **Streaming**: SSE with token events, proxy-compatible
