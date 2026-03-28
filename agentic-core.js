@@ -936,10 +936,3 @@ function validateSchema(data, schema) {
 
   return { agenticAsk }
 })
-
-// ESM export for browser import
-if (typeof module !== 'undefined' && module.exports) {
-  module.exports.agenticAsk = module.exports.agenticAsk || (typeof AgenticCore !== 'undefined' ? AgenticCore.agenticAsk : null)
-}
-export const agenticAsk = typeof AgenticCore !== 'undefined' ? AgenticCore.agenticAsk : (typeof module !== 'undefined' && module.exports ? module.exports.agenticAsk : null)
-export default { agenticAsk }
