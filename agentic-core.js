@@ -350,8 +350,8 @@ async function _agenticAsk(prompt, config, emit) {
     console.log(`\n[Round ${round}] Calling LLM...`)
     emit('status', { message: `Round ${round}/${MAX_ROUNDS}` })
     
-    // Call LLM (stream on final round or when no tools)
-    const isStreamRound = stream && (!toolDefs.length || round > 1)
+    // Call LLM (always stream for Anthropic to handle tools properly; for OpenAI, stream on final round or when no tools)
+    const isStreamRound = stream && (provider === 'anthropic' || !toolDefs.length || round > 1)
     const chatFn = provider === 'anthropic' ? anthropicChat : openaiChat
     const response = await chatFn({ messages, tools: toolDefs, model, baseUrl, apiKey, proxyUrl, stream: isStreamRound, emit, system })
     
