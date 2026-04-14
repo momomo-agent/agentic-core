@@ -447,8 +447,15 @@ async function* _streamCallWithFailover(opts) {
           }
         }
         body = { model: pModel || 'claude-sonnet-4', max_tokens: 4096, messages: anthropicMessages, stream: true }
-        if (system) body.system = system
-        if (tools?.length) body.tools = tools
+        if (system) body.system = [{ type: 'text', text: system, cache_control: { type: 'ephemeral' } }]
+        if (tools?.length) {
+          body.tools = tools.map((t, i) => i === tools.length - 1
+            ? { ...t, cache_control: { type: 'ephemeral' } }
+            : t
+          )
+        }
+        // Enable prompt caching beta
+        headers['anthropic-beta'] = 'prompt-caching-2024-07-31'
         if (pProxyUrl) { headers = { ...headers, 'x-base-url': pBaseUrl || 'https://api.anthropic.com', 'x-provider': 'anthropic' }; url = pProxyUrl }
       } else {
         url = base.includes('/v1') ? `${base}/chat/completions` : `${base}/v1/chat/completions`
@@ -833,12 +840,29 @@ async function anthropicChat({ messages, tools, model = 'claude-sonnet-4', baseU
     messages: anthropicMessages,
     stream,
   }
-  if (system) body.system = system
   if (tools?.length) {
     body.tools = tools
   }
   
   const headers = { 'content-type': 'application/json', 'x-api-key': apiKey, 'anthropic-version': '2023-06-01' }
+
+  // Enable prompt caching for system + tools (Anthropic beta)
+  if (system || tools?.length) {
+    headers['anthropic-beta'] = 'prompt-caching-2024-07-31'
+  }
+
+  // Apply cache_control to system prompt
+  if (system) {
+    body.system = [{ type: 'text', text: system, cache_control: { type: 'ephemeral' } }]
+  }
+
+  // Apply cache_control to last tool definition (caches all tools up to that point)
+  if (tools?.length) {
+    body.tools = tools.map((t, i) => i === tools.length - 1
+      ? { ...t, cache_control: { type: 'ephemeral' } }
+      : t
+    )
+  }
 
   if (stream && !proxyUrl) {
     // Stream mode — direct SSE
@@ -1555,5 +1579,90 @@ async function _audioFetch(url, opts, retries = 3) {
   throw lastErr
 }
 
-  return { agenticAsk, classifyError, toolRegistry, synthesize, transcribe, registerProvider, unregisterProvider }
+// ── Warmup: pre-heat connection + prompt cache ──
+async function warmup(config = {}) {
+  const { provider = 'anthropic', apiKey, baseUrl, model, system, tools = [], proxyUrl, providers } = config
+  if (!apiKey && (!providers || !providers.length)) {
+    console.warn('[warmup] No API key, skipping')
+    return { ok: false, reason: 'no_api_key' }
+  }
+
+  const t0 = Date.now()
+  const { defs: toolDefs } = buildToolDefs(tools)
+
+  // Build minimal request: system + tools + trivial prompt, max_tokens=1
+  const warmupSystem = toolDefs.length > 0
+    ? (system ? EAGER_HINT + '\n\n' + system : EAGER_HINT)
+    : system
+
+  try {
+    if (provider === 'anthropic') {
+      const base = (baseUrl || 'https://api.anthropic.com').replace(/\/+$/, '')
+      const url = base.endsWith('/v1') ? `${base}/messages` : `${base}/v1/messages`
+      const headers = {
+        'content-type': 'application/json',
+        'x-api-key': apiKey,
+        'anthropic-version': '2023-06-01',
+        'anthropic-beta': 'prompt-caching-2024-07-31'
+      }
+      const body = {
+        model: model || 'claude-sonnet-4',
+        max_tokens: 1,
+        messages: [{ role: 'user', content: 'hi' }],
+        stream: false,
+      }
+      if (warmupSystem) {
+        body.system = [{ type: 'text', text: warmupSystem, cache_control: { type: 'ephemeral' } }]
+      }
+      if (toolDefs.length) {
+        body.tools = toolDefs.map((t, i) => i === toolDefs.length - 1
+          ? { ...t, cache_control: { type: 'ephemeral' } }
+          : t
+        )
+      }
+
+      const fetchUrl = proxyUrl || url
+      const fetchHeaders = proxyUrl
+        ? { ...headers, 'x-base-url': baseUrl || 'https://api.anthropic.com', 'x-provider': 'anthropic' }
+        : headers
+
+      const resp = await fetch(fetchUrl, {
+        method: 'POST',
+        headers: fetchHeaders,
+        body: JSON.stringify(body),
+      })
+      const data = await resp.json()
+      const ms = Date.now() - t0
+      const cacheCreated = data.usage?.cache_creation_input_tokens || 0
+      const cacheHit = data.usage?.cache_read_input_tokens || 0
+      console.log(`[warmup] Anthropic ${ms}ms — cache_created: ${cacheCreated}, cache_hit: ${cacheHit}`)
+      return { ok: true, ms, cacheCreated, cacheHit, provider: 'anthropic' }
+    } else {
+      // OpenAI-compatible: just do a connection warmup (no prompt caching)
+      const base = (baseUrl || 'https://api.openai.com').replace(/\/+$/, '')
+      const url = base.includes('/v1') ? `${base}/chat/completions` : `${base}/v1/chat/completions`
+      const body = {
+        model: model || 'gpt-4',
+        max_tokens: 1,
+        messages: [{ role: 'user', content: 'hi' }],
+        stream: false,
+      }
+      const resp = await fetch(url, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', 'authorization': `Bearer ${apiKey}` },
+        body: JSON.stringify(body),
+      })
+      await resp.json()
+      const ms = Date.now() - t0
+      console.log(`[warmup] OpenAI ${ms}ms (connection only)`)
+      return { ok: true, ms, provider: 'openai' }
+    }
+  } catch (err) {
+    const ms = Date.now() - t0
+    console.warn(`[warmup] Failed in ${ms}ms:`, err.message)
+    return { ok: false, ms, error: err.message }
+  }
+}
+
+  return { agenticAsk, warmup, classifyError, toolRegistry, synthesize, transcribe, registerProvider, unregisterProvider }
 })
