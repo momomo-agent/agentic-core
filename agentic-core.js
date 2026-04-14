@@ -566,9 +566,12 @@ async function* _agenticAskGen(prompt, config) {
   console.log('[agenticAsk] Provider:', provider)
 
   // Eager execution hint at core level: prepend to system when tools are available
-  const effectiveSystem = toolDefs.length > 0
+  const eagerEnabled = toolDefs.length > 0
+  const effectiveSystem = eagerEnabled
     ? (system ? EAGER_HINT + '\n\n' + system : EAGER_HINT)
     : system
+
+  yield { type: 'config', eager: eagerEnabled, tools: toolDefs.length, provider }
 
   while (round < MAX_ROUNDS) {
     round++
