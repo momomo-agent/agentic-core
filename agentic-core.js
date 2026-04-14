@@ -561,6 +561,8 @@ async function* _agenticAskGen(prompt, config) {
   let finalAnswer = null
   const state = { toolCallHistory: [] }
 
+  const t_start = Date.now()
+
   console.log('[agenticAsk] Starting with prompt:', prompt.slice(0, 50))
   console.log('[agenticAsk] Tools available:', tools, 'Stream:', stream)
   console.log('[agenticAsk] Provider:', provider)
@@ -582,6 +584,8 @@ async function* _agenticAskGen(prompt, config) {
       return
     }
 
+    const t_round = Date.now()
+    let t_firstToken = 0
     console.log(`\n[Round ${round}] Calling LLM...`)
     yield { type: 'status', message: `Round ${round}/${MAX_ROUNDS}` }
 
@@ -597,16 +601,18 @@ async function* _agenticAskGen(prompt, config) {
         const streamGen = _streamCallWithFailover({ messages, tools: toolDefs, model, baseUrl, apiKey, proxyUrl, system: effectiveSystem, provider, signal, providers })
         for await (const evt of streamGen) {
           if (evt.type === 'text_delta') {
+            if (!t_firstToken) t_firstToken = Date.now()
             yield evt // Forward token-level events to consumer
           } else if (evt.type === 'tool_ready') {
             // Start eager tool execution
             const toolCall = evt.toolCall
             const promise = (async () => {
+              const t0 = Date.now()
               try {
                 const result = await executeTool(toolCall.name, toolCall.input, { searchApiKey, customTools })
-                return { call: toolCall, result, error: null }
+                return { call: toolCall, result, error: null, ms: Date.now() - t0 }
               } catch (err) {
-                return { call: toolCall, result: null, error: err.message || String(err) }
+                return { call: toolCall, result: null, error: err.message || String(err), ms: Date.now() - t0 }
               }
             })()
             eagerResults.set(toolCall.id, promise)
@@ -630,10 +636,16 @@ async function* _agenticAskGen(prompt, config) {
       }
       // Yield text content as text_delta (single chunk for non-streaming)
       if (response.content) {
+        t_firstToken = Date.now()
         yield { type: 'text_delta', text: response.content }
       }
     }
 
+    const t_llmDone = Date.now()
+    const llmMs = t_llmDone - t_round
+    const ttftMs = t_firstToken ? t_firstToken - t_round : null
+    console.log(`[Round ${round}] LLM done in ${llmMs}ms (TTFT: ${ttftMs ?? 'n/a'}ms)`)
+    yield { type: 'timing', round, phase: 'llm', ms: llmMs, ttft: ttftMs }
     console.log(`[Round ${round}] LLM Response:`)
     console.log(`  - stop_reason: ${response.stop_reason}`)
     console.log(`  - content:`, response.content)
@@ -727,6 +739,10 @@ async function* _agenticAskGen(prompt, config) {
       }))
       console.log(`[Round ${round}] All ${validCalls.length} tools done in ${Date.now() - t0}ms${hasEager ? ' (eager+parallel)' : ' (parallel)'}`)
 
+      // Yield timing event for this round
+      const toolMs = Date.now() - t0
+      yield { type: 'timing', round, phase: 'tools', ms: toolMs, eager: hasEager, count: validCalls.length }
+
       // Yield streaming tool progress events
       for (const evt of streamEvents) {
         yield evt
@@ -774,8 +790,8 @@ async function* _agenticAskGen(prompt, config) {
     console.log('[agenticAsk] Final answer:', finalAnswer.slice(0, 100))
   }
 
-  console.log('[agenticAsk] Complete. Total rounds:', round)
-  yield { type: 'done', answer: finalAnswer, rounds: round, stopReason: 'end_turn', messages }
+  console.log('[agenticAsk] Complete. Total rounds:', round, 'Total time:', Date.now() - t_start, 'ms')
+  yield { type: 'done', answer: finalAnswer, rounds: round, stopReason: 'end_turn', messages, totalMs: Date.now() - t_start }
 }
 
 // ── LLM Chat Functions ──
