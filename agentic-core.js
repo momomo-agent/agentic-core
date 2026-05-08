@@ -458,7 +458,17 @@ async function* _streamCallWithFailover(opts) {
               anthropicMessages.push({ role: 'assistant', content: blocks })
             } else { anthropicMessages.push({ role: 'assistant', content: m.content }) }
           } else if (m.role === 'tool') {
-            const toolResult = { type: 'tool_result', tool_use_id: m.tool_call_id, content: m.content }
+            let toolResult
+            if (m._images && m._images.length) {
+              const blocks = [{ type: 'text', text: typeof m.content === 'string' ? m.content : JSON.stringify(m.content) }]
+              for (const img of m._images) {
+                if (!img || !img.data) continue
+                blocks.push({ type: 'image', source: { type: 'base64', media_type: img.media_type || 'image/png', data: img.data } })
+              }
+              toolResult = { type: 'tool_result', tool_use_id: m.tool_call_id, content: blocks }
+            } else {
+              toolResult = { type: 'tool_result', tool_use_id: m.tool_call_id, content: m.content }
+            }
             const last = anthropicMessages[anthropicMessages.length - 1]
             if (last?.role === 'user' && Array.isArray(last.content) && last.content[0]?.type === 'tool_result') { last.content.push(toolResult) }
             else { anthropicMessages.push({ role: 'user', content: [toolResult] }) }
@@ -781,7 +791,17 @@ async function* _agenticAskGen(prompt, config) {
           messages.push({ role: 'tool', tool_call_id: call.id, content: JSON.stringify({ error }) })
           yield { type: 'tool_error', id: call.id, name: call.name, error }
         } else {
-          messages.push({ role: 'tool', tool_call_id: call.id, content: JSON.stringify(result) })
+          // Extract vision attachments (_images) from result so the model can actually see them
+          let images = null
+          let textResult = result
+          if (result && typeof result === 'object' && !Array.isArray(result) && Array.isArray(result._images) && result._images.length) {
+            images = result._images
+            const { _images: _omit, ...rest } = result
+            textResult = rest
+          }
+          const toolMsg = { role: 'tool', tool_call_id: call.id, content: JSON.stringify(textResult) }
+          if (images) toolMsg._images = images
+          messages.push(toolMsg)
           yield { type: 'tool_result', id: call.id, name: call.name, output: result }
         }
       }
@@ -844,7 +864,18 @@ async function anthropicChat({ messages, tools, model = 'claude-sonnet-4', baseU
         anthropicMessages.push({ role: 'assistant', content: m.content })
       }
     } else if (m.role === 'tool') {
-      const toolResult = { type: 'tool_result', tool_use_id: m.tool_call_id, content: m.content }
+      let toolResult
+      if (m._images && m._images.length) {
+        // Build multimodal tool_result content (text + images) so the model can see screenshots
+        const blocks = [{ type: 'text', text: typeof m.content === 'string' ? m.content : JSON.stringify(m.content) }]
+        for (const img of m._images) {
+          if (!img || !img.data) continue
+          blocks.push({ type: 'image', source: { type: 'base64', media_type: img.media_type || 'image/png', data: img.data } })
+        }
+        toolResult = { type: 'tool_result', tool_use_id: m.tool_call_id, content: blocks }
+      } else {
+        toolResult = { type: 'tool_result', tool_use_id: m.tool_call_id, content: m.content }
+      }
       const last = anthropicMessages[anthropicMessages.length - 1]
       if (last?.role === 'user' && Array.isArray(last.content) && last.content[0]?.type === 'tool_result') {
         last.content.push(toolResult)
